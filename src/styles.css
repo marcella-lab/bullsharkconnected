@@ -86,6 +86,17 @@ h1, h2, h3, p { margin-top: 0; }
 .dashboard-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; align-items: start; }
 .span-two { grid-column: span 2; }
 .panel { border: 1px solid var(--border); border-radius: 14px; background: white; box-shadow: 0 8px 28px rgba(12,42,57,.035); overflow: hidden; }
+.admin-table-panel { box-shadow: var(--shadow); }
+.table-wrap { width: 100%; overflow-x: auto; }
+.table-wrap table { width: 100%; min-width: 900px; border-collapse: collapse; font-size: 11px; }
+.table-wrap th { padding: 14px 16px; color: #71838c; background: #f8fafb; border-bottom: 1px solid var(--border); font-size: 9px; letter-spacing: .08em; text-align: left; text-transform: uppercase; }
+.table-wrap td { padding: 14px 16px; color: #334f5c; border-bottom: 1px solid #edf1f2; vertical-align: middle; }
+.table-wrap td strong, .table-wrap td small { display: block; }
+.table-wrap td small { margin-top: 3px; color: #87979e; font-size: 9px; }
+.table-wrap tbody tr:hover { background: #fbfdfe; }
+.table-actions { display: flex; flex-wrap: wrap; gap: 6px; min-width: 220px; }
+.button.button-small.button-paid { color: #fff; background: var(--green-500); border-color: var(--green-500); }
+.button.button-small.button-denied { color: #fff; background: var(--red-500); border-color: var(--red-500); }
 .panel-heading { min-height: 74px; padding: 20px 22px 15px; display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; border-bottom: 1px solid #edf1f2; }
 .panel-heading h2 { margin: 0 0 4px; color: #142d3b; font-size: 15px; }
 .panel-heading p, .panel-heading small { margin: 0; color: #86949b; font-size: 10px; }
