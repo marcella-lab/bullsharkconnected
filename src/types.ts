@@ -150,6 +150,10 @@ export interface PortalFile {
   createdAt: string;
   category?: string;
   description?: string;
+  captureDate?: string;
+  capturedToday?: boolean;
+  geoLatitude?: number;
+  geoLongitude?: number;
 }
 
 export interface PayRequestAttachment { id: string; name: string; mimeType: string; path: string; size: number; }
