@@ -102,6 +102,9 @@ export function createApp(store: DataStore, esign: EsignService = new Configured
   app.use(cors({ origin: process.env.APP_URL || "http://localhost:5173" }));
   app.use(express.json({ limit: "1mb" }));
   app.use(asyncRoute(async (req, res, next) => {
+    // The React application and its static assets must remain publicly readable;
+    // authentication is enforced on every API route below.
+    if (!req.path.startsWith("/api/")) return next();
     if (req.path === "/api/health" || req.path === "/api/auth/login") return next();
     const token = req.header("authorization")?.replace(/^Bearer\s+/i, "");
     const session = token && sessions.get(token);
