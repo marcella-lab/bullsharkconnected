@@ -270,7 +270,7 @@ export function createApp(store: DataStore, esign: EsignService = new Configured
     targetDate: z.string().date(),
   });
 
-  app.post("/api/projects", requireRole("admin"), asyncRoute(async (req, res) => {
+  app.post("/api/projects", requireRole("admin", "project_manager"), asyncRoute(async (req, res) => {
     const input = projectSchema.parse(req.body);
     const project = await store.update((data) => {
       const client = data.clients.find((item) => item.id === input.clientId);
@@ -292,6 +292,7 @@ export function createApp(store: DataStore, esign: EsignService = new Configured
         status: "active",
       };
       data.projects.push(value);
+      const clientUser = userById(data, client.id); if (clientUser) clientUser.projectIds = [...new Set([...clientUser.projectIds, value.id])];
       audit(data, "Project created", `${value.number} · ${value.name}`);
       return value;
     });
@@ -312,7 +313,7 @@ export function createApp(store: DataStore, esign: EsignService = new Configured
     contractorId: z.string().optional().or(z.literal("")),
   });
 
-  app.post("/api/projects/:projectId/jobs", requireRole("admin"), asyncRoute(async (req, res) => {
+  app.post("/api/projects/:projectId/jobs", requireRole("admin", "project_manager"), asyncRoute(async (req, res) => {
     const input = jobSchema.parse(req.body);
     const job = await store.update((data) => {
       const project = data.projects.find((item) => item.id === req.params.projectId);
@@ -340,6 +341,8 @@ export function createApp(store: DataStore, esign: EsignService = new Configured
         contractorName: contractor?.company,
       };
       data.jobs.push(value);
+      const clientUser = userById(data, client.id); if (clientUser) clientUser.projectIds = [...new Set([...clientUser.projectIds, project.id])];
+      if (contractor) { const contractorUser = userById(data, contractor.id); if (contractorUser) { contractorUser.projectIds = [...new Set([...contractorUser.projectIds, project.id])]; contractorUser.jobIds = [...new Set([...contractorUser.jobIds, value.id])]; } }
       audit(data, "Job created", `${value.number} added under ${project.name}`);
       return value;
     });

@@ -85,7 +85,7 @@ type DialogState =
   | { type: "files"; project: Project }
   | null;
 
-export function AdminProjects({ data, mutate }: { data: BootstrapPayload; mutate: Mutation }) {
+export function AdminProjects({ data, mutate, canCreate = true }: { data: BootstrapPayload; mutate: Mutation; canCreate?: boolean }) {
   const [dialog, setDialog] = useState<DialogState>(null);
   const [busy, setBusy] = useState(false);
   const submit = async (action: () => Promise<unknown>) => {
@@ -94,7 +94,7 @@ export function AdminProjects({ data, mutate }: { data: BootstrapPayload; mutate
   };
   return (
     <>
-      <PageHeading eyebrow="Project operations" title="Projects & jobs" detail="Organize each field scope under its parent project, then assign, schedule, and track it." actions={<button className="button button-primary" onClick={() => setDialog({ type: "project" })}><FolderPlus size={17} /> New project</button>} />
+      <PageHeading eyebrow="Project operations" title="Projects & jobs" detail="Organize each field scope under its parent project, then assign, schedule, and track it." actions={canCreate ? <button className="button button-primary manager-allowed" onClick={() => setDialog({ type: "project" })}><FolderPlus size={17} /> New project</button> : undefined} />
       <div className="project-stack">
         {data.projects.map((project) => {
           const jobs = data.jobs.filter((job) => job.projectId === project.id);
@@ -103,7 +103,7 @@ export function AdminProjects({ data, mutate }: { data: BootstrapPayload; mutate
               <header>
                 <div className="project-identity"><span className="project-code">{project.number}</span><h2>{project.name}</h2><p><MapPin size={14} /> {project.address}</p></div>
                 <div className="project-summary"><div><small>Stage</small><strong>{project.currentStage}</strong></div><div><small>Progress</small><strong>{project.progress}%</strong></div><div><small>Target</small><strong>{dateLabel(project.targetDate)}</strong></div></div>
-                <button className="button button-secondary" onClick={() => setDialog({ type: "job", project })}><FilePlus2 size={16} /> Add job</button>
+                {canCreate && <button className="button button-secondary manager-allowed" onClick={() => setDialog({ type: "job", project })}><FilePlus2 size={16} /> Add job</button>}
                 <button className="button button-secondary" onClick={() => setDialog({ type: "files", project })}>Files</button>
                 <button className="button button-danger" onClick={() => { if (window.confirm(`Delete ${project.name} and all of its jobs? This cannot be undone.`)) void submit(() => mutate(`/api/projects/${project.id}`, "DELETE")); }}><Trash2 size={15} /> Delete project</button>
               </header>
@@ -129,7 +129,7 @@ export function AdminProjects({ data, mutate }: { data: BootstrapPayload; mutate
         })}
       </div>
 
-      {dialog?.type === "project" && <Modal title="Create a project" eyebrow="Parent project" onClose={() => setDialog(null)}><form className="form-grid" onSubmit={(event) => { event.preventDefault(); const form = new FormData(event.currentTarget); void submit(() => mutate("/api/projects", "POST", { name: form.get("name"), address: form.get("address"), clientId: form.get("clientId"), manager: form.get("manager"), budget: form.get("budget"), startDate: form.get("startDate"), targetDate: form.get("targetDate") })); }}>
+      {dialog?.type === "project" && <Modal title="Create a project" eyebrow="Parent project" onClose={() => setDialog(null)}><form className="form-grid manager-allowed" onSubmit={(event) => { event.preventDefault(); const form = new FormData(event.currentTarget); void submit(() => mutate("/api/projects", "POST", { name: form.get("name"), address: form.get("address"), clientId: form.get("clientId"), manager: form.get("manager"), budget: form.get("budget"), startDate: form.get("startDate"), targetDate: form.get("targetDate") })); }}>
         <Field label="Project name"><input required name="name" placeholder="Orgeron Barndominium" /></Field>
         <Field label="Client"><select required name="clientId"><option value="">Select client</option>{data.clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}</select></Field>
         <Field label="Project address"><input required name="address" placeholder="City, state or full address" /></Field>
@@ -140,9 +140,10 @@ export function AdminProjects({ data, mutate }: { data: BootstrapPayload; mutate
         <div className="form-actions"><button type="button" className="button button-ghost" onClick={() => setDialog(null)}>Cancel</button><SubmitButton busy={busy}>Create project</SubmitButton></div>
       </form></Modal>}
 
-      {dialog?.type === "job" && <Modal title={`Add job to ${dialog.project.name}`} eyebrow="Individual job" onClose={() => setDialog(null)} wide><form className="form-grid" onSubmit={(event) => { event.preventDefault(); const form = new FormData(event.currentTarget); void submit(() => mutate(`/api/projects/${dialog.project.id}/jobs`, "POST", { title: form.get("title"), scope: form.get("scope"), location: form.get("location"), price: form.get("price"), stage: form.get("stage"), scheduleStart: form.get("scheduleStart"), scheduleEnd: form.get("scheduleEnd"), interestOpen: form.get("interestOpen") === "on", bidDue: form.get("bidDue"), clientId: form.get("clientId"), contractorId: "" })); }}>
+      {dialog?.type === "job" && <Modal title={`Add job to ${dialog.project.name}`} eyebrow="Individual job" onClose={() => setDialog(null)} wide><form className="form-grid manager-allowed" onSubmit={(event) => { event.preventDefault(); const form = new FormData(event.currentTarget); void submit(() => mutate(`/api/projects/${dialog.project.id}/jobs`, "POST", { title: form.get("title"), scope: form.get("scope"), location: form.get("location"), price: form.get("price"), stage: form.get("stage"), scheduleStart: form.get("scheduleStart"), scheduleEnd: form.get("scheduleEnd"), interestOpen: form.get("interestOpen") === "on", bidDue: form.get("bidDue"), clientId: form.get("clientId"), contractorId: form.get("contractorId") })); }}>
         <Field label="Job name"><input required name="title" placeholder="Structural framing" /></Field>
         <Field label="Assigned client"><select required name="clientId" defaultValue={dialog.project.clientId}><option value="">Select client</option>{data.clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}</select></Field>
+        <Field label="Assigned subcontractor"><select name="contractorId"><option value="">Select subcontractor</option>{data.contractors.map((contractor) => <option key={contractor.id} value={contractor.id}>{contractor.company} · {contractor.trade}</option>)}</select></Field>
         <Field label="Stage"><select name="stage">{data.settings.stages.map((stage) => <option key={stage.name}>{stage.name}</option>)}</select></Field>
         <Field label="Scope" ><textarea required name="scope" rows={3} placeholder="Describe the complete subcontractor scope…" /></Field>
         <Field label="Location"><input required name="location" defaultValue={dialog.project.address} /></Field>

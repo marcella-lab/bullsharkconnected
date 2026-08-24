@@ -119,12 +119,14 @@ describe("BullShark portal API", () => {
     expect(denied.status).toBe(403);
   });
 
-  it("gives project managers full read access but blocks write actions", async () => {
+  it("lets project managers add projects but blocks changes to existing records", async () => {
     const app = createApp(new MemoryDataStore());
     const read = await request(app).get("/api/bootstrap").set(headers("project_manager", "project-manager-1"));
-    const write = await request(app).post("/api/projects").set(headers("project_manager", "project-manager-1")).send({});
+    const created = await request(app).post("/api/projects").set(headers("project_manager", "project-manager-1")).send({ name: "Manager-created project", address: "100 Main Street", clientId: "client-1", manager: "Project Manager", budget: 1000, startDate: "2026-09-01", targetDate: "2026-09-30" });
+    const write = await request(app).delete("/api/projects/project-1").set(headers("project_manager", "project-manager-1"));
     expect(read.status).toBe(200);
     expect(read.body.projects.length).toBeGreaterThan(0);
+    expect(created.status).toBe(201);
     expect(write.status).toBe(403);
   });
 });
