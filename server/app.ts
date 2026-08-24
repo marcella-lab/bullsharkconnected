@@ -457,6 +457,18 @@ export function createApp(store: DataStore, esign: EsignService = new Configured
     res.json(contract);
   }));
 
+  app.delete("/api/contracts/:contractId", requireRole("admin"), asyncRoute(async (req, res) => {
+    await store.update(async (data) => {
+      const index = data.contracts.findIndex((item) => item.id === String(req.params.contractId));
+      if (index < 0) throw Object.assign(new Error("Contract not found."), { status: 404 });
+      const [contract] = data.contracts.splice(index, 1);
+      const safeRoot = resolve(contractStorage) + sep; const path = resolve(contract.pdfPath);
+      if (path.startsWith(safeRoot)) await unlink(path).catch(() => undefined);
+      audit(data, "Contract deleted", `${contract.contractNumber} removed by admin.`);
+    });
+    res.status(204).end();
+  }));
+
   app.get("/api/contracts/:contractId/pdf", requireRole("admin", "subcontractor"), asyncRoute(async (req, res) => {
     const data = await store.read();
     const contract = data.contracts.find((item) => item.id === req.params.contractId);

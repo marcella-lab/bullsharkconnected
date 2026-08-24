@@ -32,7 +32,7 @@ export const api = {
   changePassword: (password: string, role: Role) => request<{ ok: boolean }>("/api/auth/change-password", role, { method: "POST", body: JSON.stringify({ password }) }),
   bootstrap: (role: Role) => request<BootstrapPayload>("/api/bootstrap", role),
   get: <T,>(path: string, role: Role) => request<T>(path, role),
-  mutate: <T>(path: string, role: Role, method: "POST" | "PATCH", data?: unknown) =>
+  mutate: <T>(path: string, role: Role, method: "POST" | "PATCH" | "DELETE", data?: unknown) =>
     request<T>(path, role, { method, body: data === undefined ? undefined : JSON.stringify(data) }),
   downloadContract: async (contractId: string, contractNumber: string, role: Role) => {
     const response = await fetch(`/api/contracts/${contractId}/pdf`, {

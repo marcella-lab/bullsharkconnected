@@ -45,7 +45,7 @@ export function App() {
 
   useEffect(() => { if (sessionRole) { setData(null); void refresh(role); } }, [role, refresh, sessionRole]);
 
-  const mutate = useCallback(async <T,>(path: string, method: "POST" | "PATCH", body?: unknown) => {
+  const mutate = useCallback(async <T,>(path: string, method: "POST" | "PATCH" | "DELETE", body?: unknown) => {
     try {
       const result = await api.mutate<T>(path, role, method, body);
       await refresh(role);
