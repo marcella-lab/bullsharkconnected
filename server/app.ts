@@ -1,10 +1,12 @@
 import { resolve, sep } from "node:path";
+import { mkdir, writeFile, readFile, unlink } from "node:fs/promises";
 import cors from "cors";
 import express, { type NextFunction, type Request, type Response } from "express";
 import { z } from "zod";
-import type { AuditEntry, BootstrapPayload, Contract, Job, PortalData, Role } from "../src/types.js";
+import type { AuditEntry, BootstrapPayload, Contract, Job, PortalData, Role, PortalUser, PayRequestStatus, FileVisibility } from "../src/types.js";
 import { ConfiguredEsignService, contractStorage, generateContractPdf, type ContractContext, type EsignService } from "./contracts.js";
 import type { DataStore } from "./store.js";
+import { hashPassword, sessionToken, temporaryPassword, verifyPassword } from "./security.js";
 
 declare global {
   namespace Express {
@@ -17,6 +19,7 @@ declare global {
 const roles = ["admin", "client", "subcontractor"] as const;
 const id = (prefix: string) => `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 const isoNow = () => new Date().toISOString();
+const fileStorage = process.env.FILE_STORAGE_DIR || resolve(process.cwd(), "data", "uploads");
 
 const asyncRoute = (handler: (req: Request, res: Response, next: NextFunction) => Promise<unknown>) =>
   (req: Request, res: Response, next: NextFunction) => void handler(req, res, next).catch(next);
@@ -26,6 +29,12 @@ const audit = (data: PortalData, action: string, detail: string, role: Role = "a
   data.audit.unshift(entry);
   data.audit = data.audit.slice(0, 100);
 };
+
+const notify = (data: PortalData, userId: string, type: string, title: string, detail: string, href: string, priority: "normal" | "high" = "normal") => {
+  data.notifications!.unshift({ id: id("notice"), userId, type, title, detail, href, priority, createdAt: isoNow() });
+};
+
+const userById = (data: PortalData, idValue: string) => data.users!.find((user) => user.id === idValue);
 
 const requireRole = (...allowed: Role[]) => (req: Request, res: Response, next: NextFunction) => {
   if (!allowed.includes(req.viewer.role)) return res.status(403).json({ message: "You do not have permission to perform this action." });
@@ -55,6 +64,11 @@ const filteredData = (data: PortalData, role: Role, viewerId: string): PortalDat
       contracts: [],
       interests: [],
       audit: [],
+      users: data.users?.filter((user) => user.id === viewerId).map(({ passwordHash, ...user }) => ({ ...user, passwordHash: "" })),
+      files: data.files?.filter((file) => projectIds.has(file.projectId) && ["client", "client_and_assigned_subcontractor", "project_access"].includes(file.visibility)),
+      payRequests: [], potentialJobs: [], bids: [],
+      messages: data.messages?.filter((message) => message.recipientIds.includes(viewerId) || message.senderId === viewerId),
+      notifications: data.notifications?.filter((notice) => notice.userId === viewerId),
     };
   }
   const assigned = data.jobs.filter((job) => job.contractorId === viewerId);
@@ -71,14 +85,35 @@ const filteredData = (data: PortalData, role: Role, viewerId: string): PortalDat
     contracts: data.contracts.filter((contract) => contract.contractorId === viewerId),
     interests: data.interests.filter((interest) => interest.contractorId === viewerId),
     audit: [],
+    users: data.users?.filter((user) => user.id === viewerId).map(({ passwordHash, ...user }) => ({ ...user, passwordHash: "" })),
+    files: data.files?.filter((file) => projectIds.has(file.projectId) && (file.visibility === "project_access" || (file.visibility !== "admin" && file.jobIds.some((jobId) => assigned.some((job) => job.id === jobId))))),
+    payRequests: data.payRequests?.filter((item) => item.subcontractorId === viewerId),
+    potentialJobs: data.potentialJobs?.filter((item) => item.status === "open" && (item.visibleTo === "all" || (item.visibleTo === "trade" && data.contractors.find((contractor) => contractor.id === viewerId)?.trade.toLowerCase() === item.trade.toLowerCase()) || item.contractorIds.includes(viewerId))),
+    bids: data.bids?.filter((item) => item.contractorId === viewerId),
+    messages: data.messages?.filter((message) => message.recipientIds.includes(viewerId) || message.senderId === viewerId),
+    notifications: data.notifications?.filter((notice) => notice.userId === viewerId),
   };
 };
 
 export function createApp(store: DataStore, esign: EsignService = new ConfiguredEsignService()) {
   const app = express();
+  const sessions = new Map<string, { userId: string; expiresAt: number }>();
+  const attempts = new Map<string, { count: number; resetAt: number }>();
   app.use(cors({ origin: process.env.APP_URL || "http://localhost:5173" }));
   app.use(express.json({ limit: "1mb" }));
-  app.use((req, res, next) => {
+  app.use(asyncRoute(async (req, res, next) => {
+    if (req.path === "/api/health" || req.path === "/api/auth/login") return next();
+    const token = req.header("authorization")?.replace(/^Bearer\s+/i, "");
+    const session = token && sessions.get(token);
+    if (session && session.expiresAt > Date.now()) {
+      const data = await store.read();
+      const user = userById(data, session.userId);
+      if (!user || !user.active) return res.status(401).json({ message: "Your account is unavailable." });
+      req.viewer = { role: user.role, id: user.id };
+      return next();
+    }
+    // Header identities remain available for automated tests and local demo only. Production requires a session.
+    if (process.env.NODE_ENV === "production") return res.status(401).json({ message: "Please sign in to continue." });
     const parsed = z.enum(roles).safeParse(req.header("x-user-role") || "client");
     if (!parsed.success) return res.status(400).json({ message: "Unknown portal role." });
     req.viewer = {
@@ -86,9 +121,29 @@ export function createApp(store: DataStore, esign: EsignService = new Configured
       id: req.header("x-user-id") || (parsed.data === "client" ? "client-1" : parsed.data === "subcontractor" ? "contractor-1" : "admin-1"),
     };
     next();
-  });
+  }));
 
   app.get("/api/health", (_req, res) => res.json({ ok: true }));
+
+  app.post("/api/auth/login", asyncRoute(async (req, res) => {
+    const input = z.object({ email: z.string().email(), password: z.string().min(1) }).parse(req.body);
+    const key = req.ip || input.email.toLowerCase(); const state = attempts.get(key);
+    if (state && state.resetAt > Date.now() && state.count >= 8) return res.status(429).json({ message: "Too many sign-in attempts. Try again in 15 minutes." });
+    const data = await store.read(); const user = data.users!.find((item) => item.email.toLowerCase() === input.email.toLowerCase());
+    if (!user || !user.active || !(await verifyPassword(input.password, user.passwordHash))) {
+      attempts.set(key, { count: (state && state.resetAt > Date.now() ? state.count : 0) + 1, resetAt: Date.now() + 15 * 60_000 });
+      return res.status(401).json({ message: "Invalid email or password." });
+    }
+    attempts.delete(key); user.lastLoginAt = isoNow(); await store.update((next) => { const current = userById(next, user.id)!; current.lastLoginAt = user.lastLoginAt; });
+    const token = sessionToken(); sessions.set(token, { userId: user.id, expiresAt: Date.now() + 8 * 60 * 60_000 });
+    res.json({ token, user: { id: user.id, role: user.role, name: user.name, mustChangePassword: user.mustChangePassword } });
+  }));
+
+  app.post("/api/auth/change-password", asyncRoute(async (req, res) => {
+    const input = z.object({ password: z.string().min(10).max(200) }).parse(req.body);
+    await store.update(async (data) => { const user = userById(data, req.viewer.id)!; user.passwordHash = await hashPassword(input.password); user.mustChangePassword = false; audit(data, "Password changed", `${user.email} completed password setup.`, user.role); });
+    res.json({ ok: true });
+  }));
 
   app.get("/api/bootstrap", asyncRoute(async (req, res) => {
     const all = await store.read();
@@ -96,9 +151,50 @@ export function createApp(store: DataStore, esign: EsignService = new Configured
     const name = req.viewer.role === "admin"
       ? "Marcella Johnson"
       : data.clients[0]?.name || data.contractors[0]?.name || "Portal user";
-    const payload: BootstrapPayload = { ...data, viewer: { ...req.viewer, name } };
+    const payload: BootstrapPayload = { ...data, users: data.users?.map(({ passwordHash, ...user }) => ({ ...user, passwordHash: "" })), viewer: { ...req.viewer, name } };
     res.json(payload);
   }));
+
+  const userSchema = z.object({ role: z.enum(roles), name: z.string().trim().min(2), email: z.string().email(), phone: z.string().trim().max(40).optional(), company: z.string().trim().max(120).optional(), trade: z.string().trim().max(120).optional(), projectIds: z.array(z.string()).default([]), jobIds: z.array(z.string()).default([]), active: z.boolean().default(true) });
+  app.get("/api/users", requireRole("admin"), asyncRoute(async (_req, res) => res.json((await store.read()).users)));
+  app.post("/api/users", requireRole("admin"), asyncRoute(async (req, res) => {
+    const input = userSchema.parse(req.body); const user = await store.update(async (data) => {
+      if (data.users!.some((item) => item.email.toLowerCase() === input.email.toLowerCase())) throw Object.assign(new Error("That email is already in use."), { status: 409 });
+      const item: PortalUser = { id: id("user"), ...input, passwordHash: await hashPassword(temporaryPassword), mustChangePassword: true, notificationPreferences: {} };
+      data.users!.push(item); audit(data, "User created", `${item.email} added as ${item.role}.`); notify(data, item.id, "account", "Your BullShark account is ready", "Sign in with your temporary password and create a new password.", "overview", "high"); return item;
+    }); res.status(201).json({ ...user, temporaryPassword: temporaryPassword });
+  }));
+  app.patch("/api/users/:userId", requireRole("admin"), asyncRoute(async (req, res) => {
+    const input = userSchema.partial().parse(req.body); const user = await store.update((data) => { const item = userById(data, String(req.params.userId)); if (!item) throw Object.assign(new Error("User not found."), { status: 404 }); Object.assign(item, input); audit(data, "User updated", `${item.email} profile, role, or access changed.`); return item; }); res.json(user);
+  }));
+  app.post("/api/users/:userId/reset-password", requireRole("admin"), asyncRoute(async (req, res) => {
+    const user = await store.update(async (data) => { const item = userById(data, String(req.params.userId)); if (!item) throw Object.assign(new Error("User not found."), { status: 404 }); item.passwordHash = await hashPassword(temporaryPassword); item.mustChangePassword = true; audit(data, "Password reset", `${item.email} reset to temporary-password mode.`); notify(data, item.id, "security", "Password reset required", "An administrator reset your password. Sign in and create a new password.", "overview", "high"); return item; }); res.json({ id: user.id, temporaryPassword });
+  }));
+
+  const uploadSchema = z.object({ projectId: z.string(), jobIds: z.array(z.string()).default([]), name: z.string().min(1).max(200), mimeType: z.string().min(1), contentBase64: z.string().min(1), visibility: z.enum(["admin", "client", "assigned_subcontractor", "client_and_assigned_subcontractor", "project_access"] as const) });
+  const canProject = (data: PortalData, user: PortalUser | undefined, projectId: string) => user?.role === "admin" || Boolean(user?.projectIds.includes(projectId)) || data.projects.some((project) => project.id === projectId && project.clientId === user?.id);
+  app.post("/api/files", asyncRoute(async (req, res) => {
+    const input = uploadSchema.parse(req.body); const all = await store.read(); const user = userById(all, req.viewer.id); if (!canProject(all, user, input.projectId) || (req.viewer.role === "subcontractor" && input.jobIds.some((jobId) => !user?.jobIds.includes(jobId)))) return res.status(403).json({ message: "You cannot upload files for this work." });
+    const allowed = ["application/pdf", "image/jpeg", "image/png", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"];
+    if (!allowed.includes(input.mimeType)) return res.status(400).json({ message: "Unsupported file type." }); const bytes = Buffer.from(input.contentBase64, "base64"); if (bytes.length > 12 * 1024 * 1024) return res.status(400).json({ message: "Files must be 12 MB or smaller." });
+    const file = await store.update(async (data) => { const fileId = id("file"); await mkdir(fileStorage, { recursive: true }); const path = resolve(fileStorage, fileId); await writeFile(path, bytes); const item = { id: fileId, projectId: input.projectId, jobIds: input.jobIds, name: input.name, mimeType: input.mimeType, size: bytes.length, path, visibility: input.visibility as FileVisibility, uploadedBy: req.viewer.id, createdAt: isoNow() }; data.files!.unshift(item); audit(data, "File uploaded", `${item.name} uploaded.`, req.viewer.role); return item; }); res.status(201).json(file);
+  }));
+  app.get("/api/files/:fileId/download", asyncRoute(async (req, res) => { const data = await store.read(); const file = data.files!.find((item) => item.id === req.params.fileId); const user = userById(data, req.viewer.id); if (!file || !canProject(data, user, file.projectId) || (req.viewer.role === "subcontractor" && file.visibility !== "project_access" && !file.jobIds.some((job) => user?.jobIds.includes(job))) || (req.viewer.role === "client" && !["client", "client_and_assigned_subcontractor", "project_access"].includes(file.visibility))) return res.status(403).json({ message: "You do not have access to this file." }); res.download(file.path, file.name); }));
+
+  const payRequestSchema = z.object({ projectId: z.string(), jobId: z.string(), amountRequested: z.coerce.number().positive(), invoiceNumber: z.string().min(1), invoiceDate: z.string().date(), description: z.string().max(3000).default(""), invoice: z.object({ name: z.string().min(1), mimeType: z.string(), contentBase64: z.string().min(1) }), attachments: z.array(z.object({ name: z.string(), mimeType: z.string(), contentBase64: z.string() })).default([]) });
+  app.post("/api/pay-requests", requireRole("subcontractor"), asyncRoute(async (req, res) => {
+    const input = payRequestSchema.parse(req.body); const request = await store.update(async (data) => { const user = userById(data, req.viewer.id)!; if (!user.jobIds.includes(input.jobId) || !user.projectIds.includes(input.projectId)) throw Object.assign(new Error("This job is not assigned to you."), { status: 403 }); await mkdir(fileStorage, { recursive: true }); const save = async (file: { name: string; mimeType: string; contentBase64: string }) => { const fileId = id("attachment"); const path = resolve(fileStorage, fileId); const bytes = Buffer.from(file.contentBase64, "base64"); await writeFile(path, bytes); return { id: fileId, name: file.name, mimeType: file.mimeType, path, size: bytes.length }; }; const invoice = await save(input.invoice); const attachments = await Promise.all(input.attachments.map(save)); const item = { id: id("pay"), projectId: input.projectId, jobId: input.jobId, subcontractorId: user.id, subcontractorName: user.name, company: user.company || "", amountRequested: input.amountRequested, invoiceNumber: input.invoiceNumber, invoiceDate: input.invoiceDate, description: input.description, invoice, attachments, status: "submitted" as PayRequestStatus, readByAdmin: false, createdAt: isoNow(), updatedAt: isoNow(), activity: [{ id: id("event"), action: "Submitted", actorId: user.id, actorName: user.name, createdAt: isoNow() }] }; data.payRequests!.unshift(item); data.users!.filter((admin) => admin.role === "admin" && admin.active).forEach((admin) => notify(data, admin.id, "pay_request", "New pay request", `${user.company || user.name} submitted ${input.invoiceNumber}.`, "pay-requests", "high")); audit(data, "Pay request submitted", `${user.name} submitted ${input.invoiceNumber}.`, "subcontractor"); return item; }); res.status(201).json(request);
+  }));
+  app.patch("/api/pay-requests/:payId", requireRole("admin"), asyncRoute(async (req, res) => { const input = z.object({ status: z.enum(["submitted", "under_review", "approved", "partially_approved", "payment_processing", "paid", "rejected", "needs_revision"]), approvedAmount: z.coerce.number().nonnegative().optional(), adminNotes: z.string().max(3000).optional(), paymentDate: z.string().date().optional(), paymentReference: z.string().max(120).optional() }).parse(req.body); const result = await store.update((data) => { const item = data.payRequests!.find((entry) => entry.id === req.params.payId); if (!item) throw Object.assign(new Error("Pay request not found."), { status: 404 }); Object.assign(item, input, { updatedAt: isoNow(), readByAdmin: true }); const actor = userById(data, req.viewer.id)!; item.activity.push({ id: id("event"), action: input.status.replaceAll("_", " "), actorId: actor.id, actorName: actor.name, createdAt: isoNow(), note: input.adminNotes }); notify(data, item.subcontractorId, "pay_request", "Pay request updated", `Your ${item.invoiceNumber} request is now ${input.status.replaceAll("_", " ")}.`, "pay-requests", "high"); audit(data, "Pay request updated", `${item.invoiceNumber} marked ${input.status}.`); return item; }); res.json(result); }));
+
+  const potentialSchema = z.object({ projectId: z.string(), title: z.string().min(2), trade: z.string().min(2), scope: z.string().min(4), location: z.string().min(2), estimatedStartDate: z.string().date().optional().or(z.literal("")), estimatedCompletionDate: z.string().date().optional().or(z.literal("")), bidDue: z.string().date().optional().or(z.literal("")), budget: z.coerce.number().nonnegative().optional(), notes: z.string().max(3000).optional(), visibleTo: z.enum(["all", "trade", "specific"]), contractorIds: z.array(z.string()).default([]), fileIds: z.array(z.string()).default([]) });
+  app.post("/api/potential-jobs", requireRole("admin"), asyncRoute(async (req, res) => { const input = potentialSchema.parse(req.body); const potential = await store.update((data) => { const item = { id: id("potential"), ...input, estimatedStartDate: input.estimatedStartDate || undefined, estimatedCompletionDate: input.estimatedCompletionDate || undefined, bidDue: input.bidDue || undefined, status: "open" as const, createdAt: isoNow() }; data.potentialJobs!.unshift(item); const recipients = data.users!.filter((user) => user.role === "subcontractor" && user.active && (item.visibleTo === "all" || (item.visibleTo === "trade" && user.trade?.toLowerCase() === item.trade.toLowerCase()) || item.contractorIds.includes(user.id))); recipients.forEach((user) => notify(data, user.id, "potential_job", "New potential job", `${item.title} is available to review.`, "potential", "high")); audit(data, "Potential job posted", item.title); return item; }); res.status(201).json(potential); }));
+  app.post("/api/potential-jobs/:potentialId/bids", requireRole("subcontractor"), asyncRoute(async (req, res) => { const input = z.object({ amount: z.coerce.number().positive(), duration: z.string().min(1), proposedStartDate: z.string().date().optional().or(z.literal("")), comments: z.string().max(3000).optional(), fileIds: z.array(z.string()).default([]), status: z.enum(["interested", "submitted"]).default("submitted") }).parse(req.body); const bid = await store.update((data) => { const potential = data.potentialJobs!.find((item) => item.id === req.params.potentialId && item.status === "open"); const user = userById(data, req.viewer.id)!; if (!potential || !(potential.visibleTo === "all" || (potential.visibleTo === "trade" && potential.trade.toLowerCase() === user.trade?.toLowerCase()) || potential.contractorIds.includes(user.id))) throw Object.assign(new Error("This opportunity is unavailable."), { status: 403 }); const existing = data.bids!.find((item) => item.potentialJobId === potential.id && item.contractorId === user.id); const item = existing || { id: id("bid"), potentialJobId: potential.id, contractorId: user.id, contractorName: user.company || user.name, amount: input.amount, duration: input.duration, proposedStartDate: input.proposedStartDate || undefined, comments: input.comments, fileIds: input.fileIds, status: input.status, createdAt: isoNow(), updatedAt: isoNow() }; Object.assign(item, input, { proposedStartDate: input.proposedStartDate || undefined, updatedAt: isoNow() }); if (!existing) data.bids!.unshift(item); data.users!.filter((admin) => admin.role === "admin" && admin.active).forEach((admin) => notify(data, admin.id, "bid", `${input.status === "interested" ? "Interest" : "Bid"} received`, `${user.company || user.name} responded to ${potential.title}.`, "potential", "high")); audit(data, existing ? "Bid updated" : "Bid submitted", `${user.name} responded to ${potential.title}.`, "subcontractor"); return item; }); res.status(201).json(bid); }));
+  app.post("/api/potential-jobs/:potentialId/award", requireRole("admin"), asyncRoute(async (req, res) => { const input = z.object({ bidId: z.string() }).parse(req.body); const result = await store.update((data) => { const potential = data.potentialJobs!.find((item) => item.id === req.params.potentialId); const bid = data.bids!.find((item) => item.id === input.bidId && item.potentialJobId === potential?.id); if (!potential || !bid) throw Object.assign(new Error("Potential job or bid not found."), { status: 404 }); const project = data.projects.find((item) => item.id === potential.projectId)!; const contractor = userById(data, bid.contractorId)!; const job: Job = { id: id("job"), projectId: project.id, number: `${project.number}-J${String(data.jobs.filter((item) => item.projectId === project.id).length + 1).padStart(2, "0")}`, title: potential.title, scope: potential.scope, location: potential.location, price: bid.amount, stage: "Planned", progress: 0, status: "planned", contractorId: contractor.id, contractorName: contractor.company || contractor.name, interestOpen: false }; data.jobs.push(job); contractor.projectIds = [...new Set([...contractor.projectIds, project.id])]; contractor.jobIds = [...new Set([...contractor.jobIds, job.id])]; potential.status = "awarded"; bid.status = "selected"; notify(data, contractor.id, "award", "You were awarded a job", `${potential.title} is now an assigned job.`, "jobs", "high"); audit(data, "Job awarded", `${potential.title} awarded to ${contractor.name}.`); return { potential, job }; }); res.json(result); }));
+
+  app.get("/api/notifications", asyncRoute(async (req, res) => { const data = await store.read(); res.json(data.notifications!.filter((item) => item.userId === req.viewer.id)); }));
+  app.post("/api/notifications/read", asyncRoute(async (req, res) => { const input = z.object({ ids: z.array(z.string()).optional(), all: z.boolean().optional() }).parse(req.body); await store.update((data) => data.notifications!.filter((item) => item.userId === req.viewer.id && (input.all || input.ids?.includes(item.id))).forEach((item) => { item.readAt = isoNow(); })); res.json({ ok: true }); }));
+  app.post("/api/messages", asyncRoute(async (req, res) => { const input = z.object({ contextType: z.enum(["project", "job", "potential_job", "pay_request"]), contextId: z.string(), recipientIds: z.array(z.string()).min(1), body: z.string().min(1).max(5000), attachmentIds: z.array(z.string()).default([]) }).parse(req.body); const message = await store.update((data) => { const item = { id: id("message"), ...input, senderId: req.viewer.id, readBy: [req.viewer.id], createdAt: isoNow() }; data.messages!.unshift(item); data.users!.filter((user) => input.recipientIds.includes(user.id)).forEach((user) => notify(data, user.id, "message", "New message", input.body.slice(0, 100), "messages", "normal")); audit(data, "Message sent", `Message sent in ${input.contextType}.`, req.viewer.role); return item; }); res.status(201).json(message); }));
 
   const projectSchema = z.object({
     name: z.string().trim().min(2),

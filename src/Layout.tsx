@@ -11,6 +11,7 @@ import {
   Search,
   Settings,
   ShieldCheck,
+  Bell,
   UsersRound,
   X,
 } from "lucide-react";
@@ -27,6 +28,10 @@ const navByRole: Record<Role, NavItem[]> = {
   admin: [
     { id: "overview", label: "Overview", icon: LayoutDashboard },
     { id: "projects", label: "Projects & jobs", icon: FolderKanban },
+    { id: "potential", label: "Potential jobs", icon: Search },
+    { id: "pay-requests", label: "Invoices / pay requests", icon: ClipboardCheck },
+    { id: "users", label: "Users", icon: UsersRound },
+    { id: "notifications", label: "Notifications", icon: Bell },
     { id: "schedule", label: "Schedule", icon: CalendarDays },
     { id: "contracts", label: "Contracts", icon: FileSignature },
     { id: "interests", label: "Interest inbox", icon: UsersRound },
@@ -40,6 +45,7 @@ const navByRole: Record<Role, NavItem[]> = {
     { id: "progress", label: "Progress", icon: Activity },
     { id: "documents", label: "Documents", icon: ClipboardCheck },
     { id: "messages", label: "Messages", icon: MessageSquareText },
+    { id: "notifications", label: "Notifications", icon: Bell },
   ],
   subcontractor: [
     { id: "overview", label: "Overview", icon: LayoutDashboard },
@@ -47,7 +53,9 @@ const navByRole: Record<Role, NavItem[]> = {
     { id: "schedule", label: "Schedule", icon: CalendarDays },
     { id: "contracts", label: "Contracts", icon: FileSignature },
     { id: "potential", label: "Potential jobs", icon: Search },
+    { id: "pay-requests", label: "Pay requests", icon: ClipboardCheck },
     { id: "messages", label: "Messages", icon: MessageSquareText },
+    { id: "notifications", label: "Notifications", icon: Bell },
   ],
 };
 
@@ -63,6 +71,7 @@ export function Layout({
   view,
   onViewChange,
   onRoleChange,
+  onSignOut = () => undefined,
   children,
 }: PropsWithChildren<{
   role: Role;
@@ -70,6 +79,7 @@ export function Layout({
   view: string;
   onViewChange: (view: string) => void;
   onRoleChange: (role: Role) => void;
+  onSignOut?: () => void;
 }>) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const nav = navByRole[role];
@@ -108,14 +118,7 @@ export function Layout({
         <header className="topbar">
           <button type="button" className="menu-button" aria-label="Open menu" onClick={() => setMobileOpen(true)}><Menu /></button>
           <div className="search-shell"><Search size={17} /><input aria-label="Search" placeholder="Search projects, jobs, people…" /></div>
-          <label className="role-preview">
-            <span>View as</span>
-            <select aria-label="View as role" value={role} onChange={(event) => onRoleChange(event.target.value as Role)}>
-              <option value="admin">Admin</option>
-              <option value="client">Client</option>
-              <option value="subcontractor">Subcontractor</option>
-            </select>
-          </label>
+          <button className="button button-small" onClick={onSignOut}>Sign out</button>
         </header>
         <div className="page-content">{children}</div>
       </main>

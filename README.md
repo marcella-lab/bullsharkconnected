@@ -39,7 +39,8 @@ the browser.
 - Put the API behind HTTPS and an identity provider. The included role preview
   header makes the three workspaces testable locally; the API still enforces
   role checks on every mutation.
-- Mount `data/` and `storage/contracts/` on persistent volumes, or replace the
-  JSON repository with the production database adapter.
+- Mount a persistent volume and set `DATA_PATH=/data/portal.json` plus
+  `CONTRACT_STORAGE_DIR=/data/contracts`, or replace the JSON repository with
+  the production database adapter.
 - DocuSign JWT consent must be granted once for the integration user before
   envelopes can be sent.

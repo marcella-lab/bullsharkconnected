@@ -7,7 +7,9 @@ import { createApp } from "./app.js";
 import { JsonDataStore } from "./store.js";
 
 const root = resolve(fileURLToPath(new URL("..", import.meta.url)));
-const dataPath = resolve(root, "data", "portal.json");
+const dataPath = process.env.DATA_PATH
+  ? resolve(process.env.DATA_PATH)
+  : resolve(root, "data", "portal.json");
 const app = createApp(new JsonDataStore(dataPath));
 const clientPath = resolve(root, "dist");
 

@@ -5,7 +5,9 @@ import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import type { Contract, Contractor, Job, PortalSettings, Project } from "../src/types.js";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-export const contractStorage = resolve(root, "storage", "contracts");
+export const contractStorage = process.env.CONTRACT_STORAGE_DIR
+  ? resolve(process.env.CONTRACT_STORAGE_DIR)
+  : resolve(root, "storage", "contracts");
 
 export interface ContractContext {
   contract: Contract;
