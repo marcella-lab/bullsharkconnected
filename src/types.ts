@@ -128,6 +128,8 @@ export interface PortalUser {
   projectIds: string[];
   jobIds: string[];
   notificationPreferences: Record<string, { inApp: boolean; email: boolean; sms: boolean; locked?: boolean }>;
+  firstName?: string;
+  lastName?: string;
 }
 
 export interface PortalFile {
@@ -141,6 +143,8 @@ export interface PortalFile {
   visibility: FileVisibility;
   uploadedBy: string;
   createdAt: string;
+  category?: string;
+  description?: string;
 }
 
 export interface PayRequestAttachment { id: string; name: string; mimeType: string; path: string; size: number; }

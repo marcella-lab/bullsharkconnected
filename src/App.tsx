@@ -9,7 +9,7 @@ import {
   AdminSchedule,
   AdminSettings,
 } from "./AdminPages";
-import { api, clearSessionToken, setSessionToken } from "./api";
+import { api, clearSessionToken, setPreview, setSessionToken } from "./api";
 import { Layout } from "./Layout";
 import { AdminPayRequests, AdminUsers, NotificationsPage, SubPayRequests } from "./OperationsPages";
 import { ClientPages, SubcontractorPages } from "./RolePages";
@@ -25,6 +25,7 @@ export function App() {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [sessionRole, setSessionRole] = useState<Role | null>(null);
   const [mustChangePassword, setMustChangePassword] = useState(false);
+  const [previewRole, setPreviewRole] = useState<Role | null>(null);
 
   const notify = useCallback((type: Toast["type"], message: string) => {
     const toast = { id: Date.now(), type, message };
@@ -60,6 +61,9 @@ export function App() {
   }, [notify, refresh, role]);
 
   const changeRole = (nextRole: Role) => {
+    if (sessionRole !== "admin") return;
+    if (nextRole === "admin") { setPreview(null); setPreviewRole(null); }
+    else { setPreview({ role: nextRole }); setPreviewRole(nextRole); }
     setRole(nextRole);
     setView("overview");
   };
@@ -87,7 +91,8 @@ export function App() {
   if (mustChangePassword) return <PasswordScreen role={role} onDone={() => { setMustChangePassword(false); void refresh(role); }} />;
 
   return (
-    <Layout role={role} viewerName={data.viewer.name} view={view} onViewChange={setView} onRoleChange={changeRole} onSignOut={() => { clearSessionToken(); setSessionRole(null); setData(null); }}>
+    <Layout role={role} viewerName={data.viewer.name} view={view} onViewChange={setView} onRoleChange={changeRole} onSignOut={() => { clearSessionToken(); setPreview(null); setSessionRole(null); setData(null); }}>
+      {sessionRole === "admin" && <section className="preview-bar"><strong>{previewRole ? `ADMIN PREVIEW MODE — Viewing as ${previewRole}` : "Administrator controls"}</strong><label>View as <select value={previewRole || "admin"} onChange={(event) => changeRole(event.target.value as Role)}><option value="admin">Admin</option><option value="client">Client</option><option value="subcontractor">Subcontractor</option></select></label>{previewRole && <button className="button button-small" onClick={() => changeRole("admin")}>Exit preview</button>}</section>}
       {page}
       <div className="toast-stack" aria-live="polite">
         {toasts.map((toast) => <div className={`toast toast-${toast.type}`} key={toast.id}>{toast.type === "success" ? <CheckCircle2 /> : <AlertCircle />}<span>{toast.message}</span><button aria-label="Dismiss notification" onClick={() => setToasts((current) => current.filter((item) => item.id !== toast.id))}><X /></button></div>)}

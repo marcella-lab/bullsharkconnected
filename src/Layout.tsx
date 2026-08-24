@@ -30,7 +30,7 @@ const navByRole: Record<Role, NavItem[]> = {
     { id: "projects", label: "Projects & jobs", icon: FolderKanban },
     { id: "potential", label: "Potential jobs", icon: Search },
     { id: "pay-requests", label: "Invoices / pay requests", icon: ClipboardCheck },
-    { id: "users", label: "Users", icon: UsersRound },
+    { id: "users", label: "User management", icon: UsersRound },
     { id: "notifications", label: "Notifications", icon: Bell },
     { id: "schedule", label: "Schedule", icon: CalendarDays },
     { id: "contracts", label: "Contracts", icon: FileSignature },

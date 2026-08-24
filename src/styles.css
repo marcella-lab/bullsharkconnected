@@ -354,6 +354,13 @@ h1, h2, h3, p { margin-top: 0; }
 .boot-screen { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; color: #9dcbd3; background: var(--navy-950); }
 .boot-screen .brand-mark { margin-bottom: 5px; }
 .boot-screen p { font-size: 11px; }
+.login-form { width: min(390px, calc(100vw - 34px)); display: grid; gap: 13px; padding: 24px; border: 1px solid rgba(157,203,211,.2); border-radius: 14px; background: rgba(10,37,51,.7); }
+.login-form label { display: grid; gap: 6px; color: #d7edf0; font-size: 11px; font-weight: 800; }
+.login-form input { padding: 11px; border: 1px solid #345767; border-radius: 7px; color: white; background: #082332; }
+.form-error { color: #ffabb3; }
+.preview-bar { display: flex; align-items: center; gap: 12px; margin: -6px 0 22px; padding: 10px 14px; border: 1px solid #e6bd57; border-radius: 9px; color: #604900; background: #fff5d7; font-size: 11px; }
+.preview-bar label { margin-left: auto; display: flex; align-items: center; gap: 6px; font-weight: 700; }
+.preview-bar select { padding: 5px 7px; border: 1px solid #d3ad4c; border-radius: 5px; background: white; }
 .boot-screen .spin { animation: spin 1s linear infinite; }
 .error-screen { color: white; }
 .error-screen > svg { color: #ef7580; }

@@ -12,6 +12,7 @@ declare global {
   namespace Express {
     interface Request {
       viewer: { role: Role; id: string };
+      actor?: { role: Role; id: string };
     }
   }
 }
@@ -113,6 +114,15 @@ export function createApp(store: DataStore, esign: EsignService = new Configured
       const user = userById(data, session.userId);
       if (!user || !user.active) return res.status(401).json({ message: "Your account is unavailable." });
       req.viewer = { role: user.role, id: user.id };
+      req.actor = { ...req.viewer };
+      const previewRole = z.enum(roles).safeParse(req.header("x-preview-role"));
+      if (user.role === "admin" && previewRole.success && previewRole.data !== "admin") {
+        const requestedId = req.header("x-preview-user-id");
+        const target = data.users!.find((candidate) => candidate.id === requestedId && candidate.role === previewRole.data && candidate.active)
+          || data.users!.find((candidate) => candidate.role === previewRole.data && candidate.active);
+        if (!target) return res.status(404).json({ message: `No active ${previewRole.data} is available for preview.` });
+        req.viewer = { role: target.role, id: target.id };
+      }
       return next();
     }
     // Header identities remain available for automated tests and local demo only. Production requires a session.
@@ -158,11 +168,15 @@ export function createApp(store: DataStore, esign: EsignService = new Configured
     res.json(payload);
   }));
 
-  const userSchema = z.object({ role: z.enum(roles), name: z.string().trim().min(2), email: z.string().email(), phone: z.string().trim().max(40).optional(), company: z.string().trim().max(120).optional(), trade: z.string().trim().max(120).optional(), projectIds: z.array(z.string()).default([]), jobIds: z.array(z.string()).default([]), active: z.boolean().default(true) });
-  app.get("/api/users", requireRole("admin"), asyncRoute(async (_req, res) => res.json((await store.read()).users)));
+  const userSchema = z.object({ role: z.enum(roles), name: z.string().trim().min(2), firstName: z.string().trim().max(80).optional(), lastName: z.string().trim().max(80).optional(), email: z.string().email(), phone: z.string().trim().max(40).optional(), company: z.string().trim().max(120).optional(), trade: z.string().trim().max(120).optional(), projectIds: z.array(z.string()).default([]), jobIds: z.array(z.string()).default([]), active: z.boolean().default(true) });
+  const publicUser = ({ passwordHash, ...user }: PortalUser) => user;
+  app.get("/api/users", requireRole("admin"), asyncRoute(async (_req, res) => res.json((await store.read()).users!.map(publicUser))));
   app.post("/api/users", requireRole("admin"), asyncRoute(async (req, res) => {
     const input = userSchema.parse(req.body); const user = await store.update(async (data) => {
       if (data.users!.some((item) => item.email.toLowerCase() === input.email.toLowerCase())) throw Object.assign(new Error("That email is already in use."), { status: 409 });
+      if (input.role === "admin") { input.projectIds = []; input.jobIds = []; }
+      if (input.role === "client") input.jobIds = [];
+      if (input.jobIds.some((jobId) => !data.jobs.some((job) => job.id === jobId && input.projectIds.includes(job.projectId)))) throw Object.assign(new Error("Each assigned job must belong to an assigned project."), { status: 400 });
       const item: PortalUser = { id: id("user"), ...input, passwordHash: await hashPassword(temporaryPassword), mustChangePassword: true, notificationPreferences: {} };
       data.users!.push(item); audit(data, "User created", `${item.email} added as ${item.role}.`); notify(data, item.id, "account", "Your BullShark account is ready", "Sign in with your temporary password and create a new password.", "overview", "high"); return item;
     }); res.status(201).json({ ...user, temporaryPassword: temporaryPassword });
@@ -174,14 +188,15 @@ export function createApp(store: DataStore, esign: EsignService = new Configured
     const user = await store.update(async (data) => { const item = userById(data, String(req.params.userId)); if (!item) throw Object.assign(new Error("User not found."), { status: 404 }); item.passwordHash = await hashPassword(temporaryPassword); item.mustChangePassword = true; audit(data, "Password reset", `${item.email} reset to temporary-password mode.`); notify(data, item.id, "security", "Password reset required", "An administrator reset your password. Sign in and create a new password.", "overview", "high"); return item; }); res.json({ id: user.id, temporaryPassword });
   }));
 
-  const uploadSchema = z.object({ projectId: z.string(), jobIds: z.array(z.string()).default([]), name: z.string().min(1).max(200), mimeType: z.string().min(1), contentBase64: z.string().min(1), visibility: z.enum(["admin", "client", "assigned_subcontractor", "client_and_assigned_subcontractor", "project_access"] as const) });
+  const uploadSchema = z.object({ projectId: z.string(), jobIds: z.array(z.string()).default([]), name: z.string().min(1).max(200), mimeType: z.string().min(1), contentBase64: z.string().min(1), category: z.enum(["Plans", "Engineering", "Contract", "Estimate", "Permit", "Survey", "Photos", "Invoice", "Change Order", "Specifications", "Other"]).default("Other"), description: z.string().max(1000).default(""), visibility: z.enum(["admin", "client", "assigned_subcontractor", "client_and_assigned_subcontractor", "project_access"] as const) });
   const canProject = (data: PortalData, user: PortalUser | undefined, projectId: string) => user?.role === "admin" || Boolean(user?.projectIds.includes(projectId)) || data.projects.some((project) => project.id === projectId && project.clientId === user?.id);
   app.post("/api/files", asyncRoute(async (req, res) => {
     const input = uploadSchema.parse(req.body); const all = await store.read(); const user = userById(all, req.viewer.id); if (!canProject(all, user, input.projectId) || (req.viewer.role === "subcontractor" && input.jobIds.some((jobId) => !user?.jobIds.includes(jobId)))) return res.status(403).json({ message: "You cannot upload files for this work." });
-    const allowed = ["application/pdf", "image/jpeg", "image/png", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"];
+    const allowed = ["application/pdf", "image/jpeg", "image/png", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "text/csv", "application/zip", "application/x-zip-compressed"];
     if (!allowed.includes(input.mimeType)) return res.status(400).json({ message: "Unsupported file type." }); const bytes = Buffer.from(input.contentBase64, "base64"); if (bytes.length > 12 * 1024 * 1024) return res.status(400).json({ message: "Files must be 12 MB or smaller." });
-    const file = await store.update(async (data) => { const fileId = id("file"); await mkdir(fileStorage, { recursive: true }); const path = resolve(fileStorage, fileId); await writeFile(path, bytes); const item = { id: fileId, projectId: input.projectId, jobIds: input.jobIds, name: input.name, mimeType: input.mimeType, size: bytes.length, path, visibility: input.visibility as FileVisibility, uploadedBy: req.viewer.id, createdAt: isoNow() }; data.files!.unshift(item); audit(data, "File uploaded", `${item.name} uploaded.`, req.viewer.role); return item; }); res.status(201).json(file);
+    const file = await store.update(async (data) => { const fileId = id("file"); await mkdir(fileStorage, { recursive: true }); const path = resolve(fileStorage, fileId); await writeFile(path, bytes); const item = { id: fileId, projectId: input.projectId, jobIds: input.jobIds, name: input.name, mimeType: input.mimeType, size: bytes.length, path, category: input.category, description: input.description, visibility: input.visibility as FileVisibility, uploadedBy: req.viewer.id, createdAt: isoNow() }; data.files!.unshift(item); audit(data, "File uploaded", `${item.name} uploaded.`, req.viewer.role); return item; }); res.status(201).json(file);
   }));
+  app.patch("/api/files/:fileId", requireRole("admin"), asyncRoute(async (req, res) => { const input = z.object({ name: z.string().min(1).max(200).optional(), description: z.string().max(1000).optional(), category: z.string().optional(), visibility: z.enum(["admin", "client", "assigned_subcontractor", "client_and_assigned_subcontractor", "project_access"] as const).optional(), jobIds: z.array(z.string()).optional() }).parse(req.body); const file = await store.update((data) => { const item = data.files!.find((entry) => entry.id === String(req.params.fileId)); if (!item) throw Object.assign(new Error("File not found."), { status: 404 }); Object.assign(item, input); audit(data, "File updated", `${item.name} file metadata or job associations changed.`); return item; }); res.json(file); }));
   app.get("/api/files/:fileId/download", asyncRoute(async (req, res) => { const data = await store.read(); const file = data.files!.find((item) => item.id === req.params.fileId); const user = userById(data, req.viewer.id); if (!file || !canProject(data, user, file.projectId) || (req.viewer.role === "subcontractor" && file.visibility !== "project_access" && !file.jobIds.some((job) => user?.jobIds.includes(job))) || (req.viewer.role === "client" && !["client", "client_and_assigned_subcontractor", "project_access"].includes(file.visibility))) return res.status(403).json({ message: "You do not have access to this file." }); res.download(file.path, file.name); }));
 
   const payRequestSchema = z.object({ projectId: z.string(), jobId: z.string(), amountRequested: z.coerce.number().positive(), invoiceNumber: z.string().min(1), invoiceDate: z.string().date(), description: z.string().max(3000).default(""), invoice: z.object({ name: z.string().min(1), mimeType: z.string(), contentBase64: z.string().min(1) }), attachments: z.array(z.object({ name: z.string(), mimeType: z.string(), contentBase64: z.string() })).default([]) });

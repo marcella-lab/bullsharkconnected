@@ -7,8 +7,10 @@ export const viewerIds: Record<Role, string> = {
 };
 
 let authToken = localStorage.getItem("bullshark-session") || "";
+let preview: { role: Role; userId?: string } | null = null;
 export const setSessionToken = (token: string) => { authToken = token; localStorage.setItem("bullshark-session", token); };
 export const clearSessionToken = () => { authToken = ""; localStorage.removeItem("bullshark-session"); };
+export const setPreview = (value: { role: Role; userId?: string } | null) => { preview = value; };
 
 async function request<T>(path: string, role: Role, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
@@ -16,6 +18,7 @@ async function request<T>(path: string, role: Role, init?: RequestInit): Promise
     headers: {
       "Content-Type": "application/json",
       ...(authToken ? { Authorization: `Bearer ${authToken}` } : { "x-user-role": role, "x-user-id": viewerIds[role] }),
+      ...(preview ? { "x-preview-role": preview.role, ...(preview.userId ? { "x-preview-user-id": preview.userId } : {}) } : {}),
       ...init?.headers,
     },
   });
@@ -28,6 +31,7 @@ export const api = {
   login: (email: string, password: string) => request<{ token: string; user: { id: string; role: Role; name: string; mustChangePassword: boolean } }>("/api/auth/login", "client", { method: "POST", body: JSON.stringify({ email, password }) }),
   changePassword: (password: string, role: Role) => request<{ ok: boolean }>("/api/auth/change-password", role, { method: "POST", body: JSON.stringify({ password }) }),
   bootstrap: (role: Role) => request<BootstrapPayload>("/api/bootstrap", role),
+  get: <T,>(path: string, role: Role) => request<T>(path, role),
   mutate: <T>(path: string, role: Role, method: "POST" | "PATCH", data?: unknown) =>
     request<T>(path, role, { method, body: data === undefined ? undefined : JSON.stringify(data) }),
   downloadContract: async (contractId: string, contractNumber: string, role: Role) => {
