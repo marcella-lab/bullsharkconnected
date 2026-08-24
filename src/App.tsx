@@ -74,7 +74,7 @@ export function App() {
   if (!data) return <div className="boot-screen error-screen"><AlertCircle /><h1>Portal unavailable</h1><p>{error}</p><button className="button button-primary" onClick={() => void refresh(role)}>Try again</button></div>;
 
   let page;
-  if (role === "admin") {
+  if (role === "admin" || role === "project_manager") {
     if (view === "projects") page = <AdminProjects data={data} mutate={mutate} />;
     else if (view === "yardage") page = <YardagePage data={data} mutate={mutate} />;
     else if (view === "schedule") page = <AdminSchedule data={data} mutate={mutate} />;
@@ -95,7 +95,8 @@ export function App() {
   return (
     <Layout role={role} viewerName={data.viewer.name} view={view} onViewChange={setView} onRoleChange={changeRole} onSignOut={() => { clearSessionToken(); setPreview(null); setSessionRole(null); setData(null); }}>
       {sessionRole === "admin" && <section className="preview-bar"><strong>{previewRole ? `ADMIN PREVIEW MODE — Viewing as ${previewRole}` : "Administrator controls"}</strong><label>View as <select value={previewRole || "admin"} onChange={(event) => changeRole(event.target.value as Role)}><option value="admin">Admin</option><option value="client">Client</option><option value="subcontractor">Subcontractor</option></select></label>{previewRole && <button className="button button-small" onClick={() => changeRole("admin")}>Exit preview</button>}</section>}
-      {page}
+      {role === "project_manager" && <section className="read-only-banner"><strong>PROJECT MANAGER — READ-ONLY ACCESS</strong><span>You can view all operational information, but cannot make changes.</span></section>}
+      <div className={role === "project_manager" ? "read-only-view" : ""}>{page}</div>
       <div className="toast-stack" aria-live="polite">
         {toasts.map((toast) => <div className={`toast toast-${toast.type}`} key={toast.id}>{toast.type === "success" ? <CheckCircle2 /> : <AlertCircle />}<span>{toast.message}</span><button aria-label="Dismiss notification" onClick={() => setToasts((current) => current.filter((item) => item.id !== toast.id))}><X /></button></div>)}
       </div>

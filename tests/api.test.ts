@@ -118,4 +118,13 @@ describe("BullShark portal API", () => {
     const denied = await request(app).delete("/api/jobs/job-1").set(headers("client", "client-1"));
     expect(denied.status).toBe(403);
   });
+
+  it("gives project managers full read access but blocks write actions", async () => {
+    const app = createApp(new MemoryDataStore());
+    const read = await request(app).get("/api/bootstrap").set(headers("project_manager", "project-manager-1"));
+    const write = await request(app).post("/api/projects").set(headers("project_manager", "project-manager-1")).send({});
+    expect(read.status).toBe(200);
+    expect(read.body.projects.length).toBeGreaterThan(0);
+    expect(write.status).toBe(403);
+  });
 });

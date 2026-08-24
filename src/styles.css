@@ -95,6 +95,7 @@ h1, h2, h3, p { margin-top: 0; }
 .table-wrap td small { margin-top: 3px; color: #87979e; font-size: 9px; }
 .table-wrap tbody tr:hover { background: #fbfdfe; }
 .yardage-panel { background: white; border: 1px solid var(--border); border-radius: 14px; padding: 18px; margin-bottom: 18px; box-shadow: 0 8px 24px rgba(13,43,60,.035); }
+.read-only-banner { display: flex; justify-content: space-between; gap: 12px; align-items: center; padding: 12px 16px; margin-bottom: 16px; border-radius: 10px; color: #5d4800; background: #fff3bd; border: 1px solid #eed57a; font-size: 12px; }.read-only-view button:not(.menu-button), .read-only-view input, .read-only-view select, .read-only-view textarea { pointer-events: none; opacity: .55; }
 .panel-title, .yardage-toolbar, .page-actions { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
 .panel-title h2 { margin: 0; font-size: 17px; color: #092130; }.panel-title p, .form-hint { margin: 4px 0 0; color: #71838c; font-size: 12px; }
 .yardage-form { display: grid; grid-template-columns: repeat(6, minmax(120px, 1fr)); gap: 9px; margin-top: 16px; align-items: end; }.yardage-form input, .yardage-form select, .yardage-toolbar input, .yardage-toolbar select, .supplier-form input { min-width: 0; padding: 10px; border: 1px solid #d7e1e5; border-radius: 7px; background: #fff; color: #183442; }

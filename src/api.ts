@@ -2,6 +2,7 @@ import type { BootstrapPayload, Role } from "./types";
 
 export const viewerIds: Record<Role, string> = {
   admin: "admin-1",
+  project_manager: "project-manager-1",
   client: "client-1",
   subcontractor: "contractor-1",
 };

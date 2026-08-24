@@ -1,4 +1,4 @@
-export type Role = "admin" | "client" | "subcontractor";
+export type Role = "admin" | "project_manager" | "client" | "subcontractor";
 
 export type JobStatus = "planned" | "scheduled" | "in_progress" | "blocked" | "complete";
 export type ProjectStatus = "active" | "on_hold" | "complete";

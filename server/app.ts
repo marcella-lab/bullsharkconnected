@@ -17,7 +17,7 @@ declare global {
   }
 }
 
-const roles = ["admin", "client", "subcontractor"] as const;
+const roles = ["admin", "project_manager", "client", "subcontractor"] as const;
 const id = (prefix: string) => `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 const isoNow = () => new Date().toISOString();
 const fileStorage = process.env.FILE_STORAGE_DIR || resolve(process.cwd(), "data", "uploads");
@@ -59,7 +59,7 @@ const contractContext = (data: PortalData, contract: Contract): ContractContext 
 };
 
 const filteredData = (data: PortalData, role: Role, viewerId: string): PortalData => {
-  if (role === "admin") return data;
+  if (role === "admin" || role === "project_manager") return data;
   if (role === "client") {
     const projects = data.projects.filter((project) => project.clientId === viewerId || data.jobs.some((job) => job.projectId === project.id && job.clientId === viewerId));
     const projectIds = new Set(projects.map((project) => project.id));
@@ -171,7 +171,7 @@ export function createApp(store: DataStore, esign: EsignService = new Configured
   app.get("/api/bootstrap", asyncRoute(async (req, res) => {
     const all = await store.read();
     const data = filteredData(all, req.viewer.role, req.viewer.id);
-    const name = req.viewer.role === "admin"
+    const name = req.viewer.role === "admin" || req.viewer.role === "project_manager"
       ? "Marcella Johnson"
       : data.clients[0]?.name || data.contractors[0]?.name || "Portal user";
     const payload: BootstrapPayload = { ...data, users: data.users?.map(({ passwordHash, ...user }) => ({ ...user, passwordHash: "" })), viewer: { ...req.viewer, name } };
@@ -180,14 +180,14 @@ export function createApp(store: DataStore, esign: EsignService = new Configured
 
   const userSchema = z.object({ role: z.enum(roles), name: z.string().trim().min(2), firstName: z.string().trim().max(80).optional(), lastName: z.string().trim().max(80).optional(), email: z.string().email(), phone: z.string().trim().max(40).optional(), company: z.string().trim().max(120).optional(), trade: z.string().trim().max(120).optional(), projectIds: z.array(z.string()).default([]), jobIds: z.array(z.string()).default([]), active: z.boolean().default(true) });
   const publicUser = ({ passwordHash, ...user }: PortalUser) => user;
-  app.get("/api/users", requireRole("admin"), asyncRoute(async (_req, res) => {
+  app.get("/api/users", requireRole("admin", "project_manager"), asyncRoute(async (_req, res) => {
     const data = await store.read();
     res.json((data.users || []).map(publicUser));
   }));
   app.post("/api/users", requireRole("admin"), asyncRoute(async (req, res) => {
     const input = userSchema.parse(req.body); const user = await store.update(async (data) => {
       if (data.users!.some((item) => item.email.toLowerCase() === input.email.toLowerCase())) throw Object.assign(new Error("That email is already in use."), { status: 409 });
-      if (input.role === "admin") { input.projectIds = []; input.jobIds = []; }
+      if (input.role === "admin" || input.role === "project_manager") { input.projectIds = []; input.jobIds = []; }
       if (input.role === "client") input.jobIds = [];
       if (input.jobIds.some((jobId) => !data.jobs.some((job) => job.id === jobId && input.projectIds.includes(job.projectId)))) throw Object.assign(new Error("Each assigned job must belong to an assigned project."), { status: 400 });
       const item: PortalUser = { id: id("user"), ...input, passwordHash: await hashPassword(temporaryPassword), mustChangePassword: true, notificationPreferences: {} };
@@ -235,7 +235,7 @@ export function createApp(store: DataStore, esign: EsignService = new Configured
   app.post("/api/yardage/suppliers", requireRole("admin"), asyncRoute(async (req, res) => { const input = supplierSchema.parse(req.body); const supplier = await store.update((data) => { const existing = data.concreteSuppliers!.find((item) => item.company.toLowerCase() === input.company.toLowerCase()); const item = { id: existing?.id || id("supplier"), ...input, email: input.email || undefined }; if (existing) Object.assign(existing, item); else data.concreteSuppliers!.unshift(item); audit(data, existing ? "Concrete supplier updated" : "Concrete supplier created", item.company); return existing || item; }); res.status(201).json(supplier); }));
 
   const uploadSchema = z.object({ projectId: z.string(), jobIds: z.array(z.string()).default([]), name: z.string().min(1).max(200), mimeType: z.string().min(1), contentBase64: z.string().min(1), category: z.enum(["Plans", "Engineering", "Contract", "Estimate", "Permit", "Survey", "Photos", "Invoice", "Change Order", "Specifications", "Other"]).default("Other"), description: z.string().max(1000).default(""), captureDate: z.string().date().optional().or(z.literal("")), geoLatitude: z.coerce.number().min(-90).max(90).optional(), geoLongitude: z.coerce.number().min(-180).max(180).optional(), visibility: z.enum(["admin", "client", "assigned_subcontractor", "client_and_assigned_subcontractor", "project_access"] as const) });
-  const canProject = (data: PortalData, user: PortalUser | undefined, projectId: string) => user?.role === "admin" || Boolean(user?.projectIds.includes(projectId)) || data.projects.some((project) => project.id === projectId && project.clientId === user?.id);
+  const canProject = (data: PortalData, user: PortalUser | undefined, projectId: string) => user?.role === "admin" || user?.role === "project_manager" || Boolean(user?.projectIds.includes(projectId)) || data.projects.some((project) => project.id === projectId && project.clientId === user?.id);
   app.post("/api/files", asyncRoute(async (req, res) => {
     const input = uploadSchema.parse(req.body); const all = await store.read(); const user = userById(all, req.viewer.id); if (!canProject(all, user, input.projectId) || (req.viewer.role === "subcontractor" && input.jobIds.some((jobId) => !user?.jobIds.includes(jobId)))) return res.status(403).json({ message: "You cannot upload files for this work." });
     const allowed = ["application/pdf", "image/jpeg", "image/png", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "text/csv", "application/zip", "application/x-zip-compressed"];
@@ -524,7 +524,7 @@ export function createApp(store: DataStore, esign: EsignService = new Configured
     res.status(204).end();
   }));
 
-  app.get("/api/contracts/:contractId/pdf", requireRole("admin", "subcontractor"), asyncRoute(async (req, res) => {
+  app.get("/api/contracts/:contractId/pdf", requireRole("admin", "project_manager", "subcontractor"), asyncRoute(async (req, res) => {
     const data = await store.read();
     const contract = data.contracts.find((item) => item.id === req.params.contractId);
     if (!contract) return res.status(404).json({ message: "Contract not found." });

@@ -40,6 +40,9 @@ const navByRole: Record<Role, NavItem[]> = {
     { id: "settings", label: "Admin settings", icon: Settings },
     { id: "audit", label: "Audit log", icon: ShieldCheck },
   ],
+  project_manager: [
+    { id: "overview", label: "Overview", icon: LayoutDashboard }, { id: "projects", label: "Projects & jobs", icon: FolderKanban }, { id: "yardage", label: "Yardage calculator", icon: Calculator }, { id: "potential", label: "Potential jobs", icon: Search }, { id: "pay-requests", label: "Invoices / pay requests", icon: ClipboardCheck }, { id: "users", label: "User management", icon: UsersRound }, { id: "notifications", label: "Notifications", icon: Bell }, { id: "schedule", label: "Schedule", icon: CalendarDays }, { id: "contracts", label: "Contracts", icon: FileSignature }, { id: "interests", label: "Interest inbox", icon: UsersRound }, { id: "settings", label: "Admin settings", icon: Settings }, { id: "audit", label: "Audit log", icon: ShieldCheck },
+  ],
   client: [
     { id: "overview", label: "Overview", icon: LayoutDashboard },
     { id: "projects", label: "My projects", icon: FolderKanban },
@@ -63,6 +66,7 @@ const navByRole: Record<Role, NavItem[]> = {
 
 const roleLabels: Record<Role, string> = {
   admin: "Admin",
+  project_manager: "Project manager",
   client: "Client",
   subcontractor: "Subcontractor",
 };
@@ -99,7 +103,7 @@ export function Layout({
           <span><strong>BULLSHARK</strong><small>CONNECTED</small></span>
           <button className="mobile-close" type="button" aria-label="Close menu" onClick={() => setMobileOpen(false)}><X /></button>
         </div>
-        <div className="signed-in"><span>{role === "admin" ? "Signed in as" : "Viewing as"}</span><strong>{roleLabels[role]}</strong></div>
+        <div className="signed-in"><span>{role === "admin" || role === "project_manager" ? "Signed in as" : "Viewing as"}</span><strong>{roleLabels[role]}</strong></div>
         <nav aria-label="Main navigation">
           {nav.map((item) => {
             const Icon = item.icon;
