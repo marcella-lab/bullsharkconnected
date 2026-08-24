@@ -1,5 +1,5 @@
 import { resolve, sep } from "node:path";
-import { mkdir, writeFile, readFile, unlink } from "node:fs/promises";
+import { access, mkdir, writeFile, readFile, unlink } from "node:fs/promises";
 import cors from "cors";
 import express, { type NextFunction, type Request, type Response } from "express";
 import { z } from "zod";
@@ -447,6 +447,19 @@ export function createApp(store: DataStore, esign: EsignService = new Configured
     if (!contract) return res.status(404).json({ message: "Contract not found." });
     if (req.viewer.role === "subcontractor" && contract.contractorId !== req.viewer.id) {
       return res.status(403).json({ message: "You do not have access to this contract." });
+    }
+    // Older saved records may predate the persistent contract volume. Rebuild their
+    // PDF on demand from the stored contract, project, job, and template data.
+    try { await access(contract.pdfPath); }
+    catch {
+      await store.update(async (next) => {
+        const item = next.contracts.find((candidate) => candidate.id === contract.id)!;
+        item.pdfPath = await generateContractPdf(contractContext(next, item));
+        item.updatedAt = isoNow();
+      });
+      const refreshed = await store.read();
+      const item = refreshed.contracts.find((candidate) => candidate.id === contract.id)!;
+      contract.pdfPath = item.pdfPath;
     }
     const safeRoot = resolve(contractStorage) + sep;
     const path = resolve(contract.pdfPath);

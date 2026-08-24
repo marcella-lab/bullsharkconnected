@@ -36,7 +36,7 @@ export const api = {
     request<T>(path, role, { method, body: data === undefined ? undefined : JSON.stringify(data) }),
   downloadContract: async (contractId: string, contractNumber: string, role: Role) => {
     const response = await fetch(`/api/contracts/${contractId}/pdf`, {
-      headers: { "x-user-role": role, "x-user-id": viewerIds[role] },
+      headers: authToken ? { Authorization: `Bearer ${authToken}` } : { "x-user-role": role, "x-user-id": viewerIds[role] },
     });
     if (!response.ok) {
       const body = await response.json().catch(() => ({}));
