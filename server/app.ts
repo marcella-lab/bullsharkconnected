@@ -441,16 +441,16 @@ export function createApp(store: DataStore, esign: EsignService = new Configured
     res.json(result);
   }));
 
-  app.post("/api/contracts/:contractId/sign", requireRole("subcontractor"), asyncRoute(async (req, res) => {
+  app.post("/api/contracts/:contractId/sign", requireRole("admin", "subcontractor"), asyncRoute(async (req, res) => {
     const input = z.object({ signerName: z.string().trim().min(2).max(120), signerTitle: z.string().trim().min(2).max(120), accepted: z.literal(true) }).parse(req.body);
     const contract = await store.update(async (data) => {
       const item = data.contracts.find((candidate) => candidate.id === String(req.params.contractId));
       if (!item) throw Object.assign(new Error("Contract not found."), { status: 404 });
-      if (item.contractorId !== req.viewer.id) throw Object.assign(new Error("You can only sign your own contracts."), { status: 403 });
+      if (req.viewer.role === "subcontractor" && item.contractorId !== req.viewer.id) throw Object.assign(new Error("You can only sign your own contracts."), { status: 403 });
       if (item.status === "signed") throw Object.assign(new Error("This contract has already been signed."), { status: 409 });
       item.signerName = input.signerName; item.signerTitle = input.signerTitle; item.signedAt = isoNow(); item.status = "signed"; item.updatedAt = item.signedAt;
       item.pdfPath = await generateContractPdf(contractContext(data, item));
-      audit(data, "Contract signed", `${item.contractNumber} signed by ${input.signerName}.`, "subcontractor");
+      audit(data, "Contract signed", `${item.contractNumber} signed by ${input.signerName}${req.viewer.role === "admin" ? " (admin action)" : ""}.`, req.viewer.role);
       data.users?.filter((user) => user.role === "admin" && user.active).forEach((user) => notify(data, user.id, "contract", "Contract signed", `${item.contractNumber} was signed by ${input.signerName}.`, "contracts", "high"));
       return item;
     });
