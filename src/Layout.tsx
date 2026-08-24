@@ -12,6 +12,7 @@ import {
   Settings,
   ShieldCheck,
   Bell,
+  Calculator,
   UsersRound,
   X,
 } from "lucide-react";
@@ -28,6 +29,7 @@ const navByRole: Record<Role, NavItem[]> = {
   admin: [
     { id: "overview", label: "Overview", icon: LayoutDashboard },
     { id: "projects", label: "Projects & jobs", icon: FolderKanban },
+    { id: "yardage", label: "Yardage calculator", icon: Calculator },
     { id: "potential", label: "Potential jobs", icon: Search },
     { id: "pay-requests", label: "Invoices / pay requests", icon: ClipboardCheck },
     { id: "users", label: "User management", icon: UsersRound },

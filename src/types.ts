@@ -167,6 +167,9 @@ export interface PotentialJob {
 export interface Bid { id: string; potentialJobId: string; contractorId: string; contractorName: string; amount: number; duration: string; proposedStartDate?: string; comments?: string; fileIds: string[]; status: "interested" | "submitted" | "selected" | "declined"; createdAt: string; updatedAt: string; }
 export interface PortalMessage { id: string; contextType: "project" | "job" | "potential_job" | "pay_request"; contextId: string; senderId: string; recipientIds: string[]; body: string; attachmentIds: string[]; readBy: string[]; createdAt: string; }
 export interface Notification { id: string; userId: string; type: string; title: string; detail: string; href: string; readAt?: string; priority: "normal" | "high"; createdAt: string; }
+export type YardageStatus = "ACTIVE" | "INACTIVE" | "POTENTIAL" | "COMPLETED";
+export interface YardageRow { id: string; status: YardageStatus; state: string; concreteCompany: string; client: string; projectId?: string; dimensions: string; thickness: number; footers: string; length: number; width: number; footerWidth: number; footerDepth: number; padYardage: number; footerYardage: number; totalYardage: number; concreteCost: number; subCost: number; contractCost: number; additionalCosts: number; notes?: string; createdAt: string; updatedAt: string; createdBy: string; updatedBy: string; }
+export interface ConcreteSupplier { id: string; company: string; contactName?: string; phone?: string; email?: string; state?: string; notes?: string; }
 
 export interface PortalData {
   settings: PortalSettings;
@@ -184,6 +187,8 @@ export interface PortalData {
   bids?: Bid[];
   messages?: PortalMessage[];
   notifications?: Notification[];
+  yardageRows?: YardageRow[];
+  concreteSuppliers?: ConcreteSupplier[];
 }
 
 export interface BootstrapPayload extends PortalData {

@@ -13,6 +13,7 @@ import { api, clearSessionToken, setPreview, setSessionToken } from "./api";
 import { Layout } from "./Layout";
 import { AdminPayRequests, AdminUsers, NotificationsPage, SubPayRequests } from "./OperationsPages";
 import { ClientPages, SubcontractorPages } from "./RolePages";
+import { YardagePage } from "./YardagePage";
 import type { BootstrapPayload, Role } from "./types";
 
 type Toast = { id: number; type: "success" | "error"; message: string };
@@ -75,6 +76,7 @@ export function App() {
   let page;
   if (role === "admin") {
     if (view === "projects") page = <AdminProjects data={data} mutate={mutate} />;
+    else if (view === "yardage") page = <YardagePage data={data} mutate={mutate} />;
     else if (view === "schedule") page = <AdminSchedule data={data} mutate={mutate} />;
     else if (view === "contracts") page = <AdminContracts data={data} mutate={mutate} />;
     else if (view === "interests") page = <AdminInterests data={data} />;

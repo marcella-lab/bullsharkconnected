@@ -71,7 +71,7 @@ export class MemoryDataStore implements DataStore {
 /** Adds new collections and accounts without altering existing projects, jobs, or contracts. */
 async function migrate(data: PortalData) {
   let changed = false;
-  for (const key of ["files", "payRequests", "potentialJobs", "bids", "messages", "notifications"] as const) {
+  for (const key of ["files", "payRequests", "potentialJobs", "bids", "messages", "notifications", "yardageRows", "concreteSuppliers"] as const) {
     if (!data[key]) { (data as unknown as Record<string, unknown>)[key] = []; changed = true; }
   }
   if (!data.users) {

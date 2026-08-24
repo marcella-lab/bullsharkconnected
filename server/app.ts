@@ -3,7 +3,7 @@ import { access, mkdir, writeFile, readFile, unlink } from "node:fs/promises";
 import cors from "cors";
 import express, { type NextFunction, type Request, type Response } from "express";
 import { z } from "zod";
-import type { AuditEntry, BootstrapPayload, Contract, Job, PortalData, Role, PortalUser, PayRequestStatus, FileVisibility } from "../src/types.js";
+import type { AuditEntry, BootstrapPayload, Contract, Job, PortalData, Role, PortalUser, PayRequestStatus, FileVisibility, YardageRow } from "../src/types.js";
 import { ConfiguredEsignService, contractStorage, generateContractPdf, type ContractContext, type EsignService } from "./contracts.js";
 import type { DataStore } from "./store.js";
 import { hashPassword, sessionToken, temporaryPassword, verifyPassword } from "./security.js";
@@ -36,6 +36,13 @@ const notify = (data: PortalData, userId: string, type: string, title: string, d
 };
 
 const userById = (data: PortalData, idValue: string) => data.users!.find((user) => user.id === idValue);
+const parsePair = (value: string, label: string) => { const match = value.trim().match(/^(\d+(?:\.\d+)?)\s*x\s*(\d+(?:\.\d+)?)$/i); if (!match) throw Object.assign(new Error(label === "footer size" ? "Enter footer size as Width x Depth (example: 18x24)." : "Enter dimensions as Length x Width (example: 60x40)."), { status: 400 }); return [Number(match[1]), Number(match[2])] as const; };
+const calculateYardage = (input: { dimensions: string; thickness: number; footers: string; concreteCost?: number; subCost?: number; contractCost?: number; additionalCosts?: number }) => {
+  const [length, width] = parsePair(input.dimensions, "dimensions"); const [footerWidth, footerDepth] = parsePair(input.footers, "footer size");
+  if (!(input.thickness > 0)) throw Object.assign(new Error("Thickness must be greater than zero."), { status: 400 });
+  const padYardage = (length * width * (input.thickness / 12)) / 27; const footerYardage = ((2 * (length + width)) * (footerWidth / 12) * (footerDepth / 12)) / 27;
+  return { length, width, footerWidth, footerDepth, padYardage, footerYardage, totalYardage: padYardage + footerYardage };
+};
 
 const requireRole = (...allowed: Role[]) => (req: Request, res: Response, next: NextFunction) => {
   if (!allowed.includes(req.viewer.role)) return res.status(403).json({ message: "You do not have permission to perform this action." });
@@ -68,6 +75,7 @@ const filteredData = (data: PortalData, role: Role, viewerId: string): PortalDat
       users: data.users?.filter((user) => user.id === viewerId).map(({ passwordHash, ...user }) => ({ ...user, passwordHash: "" })),
       files: data.files?.filter((file) => projectIds.has(file.projectId) && ["client", "client_and_assigned_subcontractor", "project_access"].includes(file.visibility)),
       payRequests: [], potentialJobs: [], bids: [],
+      yardageRows: [], concreteSuppliers: [],
       messages: data.messages?.filter((message) => message.recipientIds.includes(viewerId) || message.senderId === viewerId),
       notifications: data.notifications?.filter((notice) => notice.userId === viewerId),
     };
@@ -91,6 +99,7 @@ const filteredData = (data: PortalData, role: Role, viewerId: string): PortalDat
     payRequests: data.payRequests?.filter((item) => item.subcontractorId === viewerId),
     potentialJobs: data.potentialJobs?.filter((item) => item.status === "open" && (item.visibleTo === "all" || (item.visibleTo === "trade" && data.contractors.find((contractor) => contractor.id === viewerId)?.trade.toLowerCase() === item.trade.toLowerCase()) || item.contractorIds.includes(viewerId))),
     bids: data.bids?.filter((item) => item.contractorId === viewerId),
+    yardageRows: [], concreteSuppliers: [],
     messages: data.messages?.filter((message) => message.recipientIds.includes(viewerId) || message.senderId === viewerId),
     notifications: data.notifications?.filter((notice) => notice.userId === viewerId),
   };
@@ -190,6 +199,37 @@ export function createApp(store: DataStore, esign: EsignService = new Configured
   app.post("/api/users/:userId/reset-password", requireRole("admin"), asyncRoute(async (req, res) => {
     const user = await store.update(async (data) => { const item = userById(data, String(req.params.userId)); if (!item) throw Object.assign(new Error("User not found."), { status: 404 }); item.passwordHash = await hashPassword(temporaryPassword); item.mustChangePassword = true; audit(data, "Password reset", `${item.email} reset to temporary-password mode.`); notify(data, item.id, "security", "Password reset required", "An administrator reset your password. Sign in and create a new password.", "overview", "high"); return item; }); res.json({ id: user.id, temporaryPassword });
   }));
+
+  const yardageSchema = z.object({
+    status: z.enum(["ACTIVE", "INACTIVE", "POTENTIAL", "COMPLETED"]),
+    state: z.string().trim().max(8).default(""),
+    concreteCompany: z.string().trim().max(160).default(""),
+    client: z.string().trim().min(1).max(200),
+    projectId: z.string().optional().or(z.literal("")),
+    dimensions: z.string().trim().min(3).max(40),
+    thickness: z.coerce.number().positive().max(48),
+    footers: z.string().trim().min(3).max(40),
+    concreteCost: z.coerce.number().nonnegative().default(0),
+    subCost: z.coerce.number().nonnegative().default(0),
+    contractCost: z.coerce.number().nonnegative().default(0),
+    additionalCosts: z.coerce.number().nonnegative().default(0),
+    notes: z.string().max(3000).optional(),
+  });
+  const supplierSchema = z.object({ company: z.string().trim().min(1).max(160), contactName: z.string().trim().max(120).optional(), phone: z.string().trim().max(50).optional(), email: z.string().email().optional().or(z.literal("")), state: z.string().trim().max(8).optional(), notes: z.string().trim().max(2000).optional() });
+  const makeYardageRow = (input: z.infer<typeof yardageSchema>, actorId: string, existing?: YardageRow): YardageRow => {
+    const calc = calculateYardage(input);
+    const now = isoNow();
+    return { id: existing?.id || id("yardage"), ...input, projectId: input.projectId || undefined, ...calc, createdAt: existing?.createdAt || now, updatedAt: now, createdBy: existing?.createdBy || actorId, updatedBy: actorId };
+  };
+  app.get("/api/yardage", requireRole("admin"), asyncRoute(async (_req, res) => { const data = await store.read(); res.json({ rows: data.yardageRows || [], suppliers: data.concreteSuppliers || [] }); }));
+  app.post("/api/yardage", requireRole("admin"), asyncRoute(async (req, res) => {
+    const input = yardageSchema.parse(req.body); const row = await store.update((data) => { if (input.projectId && !data.projects.some((project) => project.id === input.projectId)) throw Object.assign(new Error("Selected project was not found."), { status: 404 }); const item = makeYardageRow(input, req.viewer.id); data.yardageRows!.unshift(item); audit(data, "Yardage row created", `${item.client} · ${item.totalYardage.toFixed(2)} CY.`); return item; }); res.status(201).json(row);
+  }));
+  app.patch("/api/yardage/:rowId", requireRole("admin"), asyncRoute(async (req, res) => {
+    const input = yardageSchema.partial().parse(req.body); const row = await store.update((data) => { const existing = data.yardageRows!.find((item) => item.id === req.params.rowId); if (!existing) throw Object.assign(new Error("Calculator row not found."), { status: 404 }); const merged = yardageSchema.parse({ ...existing, ...input }); if (merged.projectId && !data.projects.some((project) => project.id === merged.projectId)) throw Object.assign(new Error("Selected project was not found."), { status: 404 }); const item = makeYardageRow(merged, req.viewer.id, existing); Object.assign(existing, item); audit(data, "Yardage row updated", `${existing.client} calculator values changed.`); return existing; }); res.json(row);
+  }));
+  app.delete("/api/yardage/:rowId", requireRole("admin"), asyncRoute(async (req, res) => { await store.update((data) => { const index = data.yardageRows!.findIndex((item) => item.id === req.params.rowId); if (index < 0) throw Object.assign(new Error("Calculator row not found."), { status: 404 }); const [removed] = data.yardageRows!.splice(index, 1); audit(data, "Yardage row deleted", `${removed.client} calculator row deleted.`); }); res.json({ ok: true }); }));
+  app.post("/api/yardage/suppliers", requireRole("admin"), asyncRoute(async (req, res) => { const input = supplierSchema.parse(req.body); const supplier = await store.update((data) => { const existing = data.concreteSuppliers!.find((item) => item.company.toLowerCase() === input.company.toLowerCase()); const item = { id: existing?.id || id("supplier"), ...input, email: input.email || undefined }; if (existing) Object.assign(existing, item); else data.concreteSuppliers!.unshift(item); audit(data, existing ? "Concrete supplier updated" : "Concrete supplier created", item.company); return existing || item; }); res.status(201).json(supplier); }));
 
   const uploadSchema = z.object({ projectId: z.string(), jobIds: z.array(z.string()).default([]), name: z.string().min(1).max(200), mimeType: z.string().min(1), contentBase64: z.string().min(1), category: z.enum(["Plans", "Engineering", "Contract", "Estimate", "Permit", "Survey", "Photos", "Invoice", "Change Order", "Specifications", "Other"]).default("Other"), description: z.string().max(1000).default(""), visibility: z.enum(["admin", "client", "assigned_subcontractor", "client_and_assigned_subcontractor", "project_access"] as const) });
   const canProject = (data: PortalData, user: PortalUser | undefined, projectId: string) => user?.role === "admin" || Boolean(user?.projectIds.includes(projectId)) || data.projects.some((project) => project.id === projectId && project.clientId === user?.id);
