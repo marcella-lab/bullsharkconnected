@@ -63,6 +63,7 @@ export async function generateContractPdf(context: ContractContext) {
   const pdf = await PDFDocument.create();
   const regular = await pdf.embedFont(StandardFonts.Helvetica);
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
+  const signatureFont = await pdf.embedFont(StandardFonts.HelveticaOblique);
   const navy = rgb(0.027, 0.075, 0.122);
   const cyan = rgb(0.133, 0.827, 0.933);
   const muted = rgb(0.29, 0.36, 0.42);
@@ -112,10 +113,13 @@ export async function generateContractPdf(context: ContractContext) {
   if (y < 160) addPage();
   y -= 18;
   page.drawLine({ start: { x: margin, y }, end: { x: 260, y }, thickness: 0.8, color: muted });
-  page.drawText("Subcontractor signature", { x: margin, y: y - 16, size: 8, font: regular, color: muted });
+  if (context.contract.signedAt) {
+    page.drawText(context.contract.signerName || "Authorized signer", { x: margin + 6, y: y + 7, size: 15, font: signatureFont, color: navy });
+    page.drawText(context.contract.signerTitle || "Authorized representative", { x: margin, y: y - 16, size: 8, font: regular, color: muted });
+  } else page.drawText("Subcontractor signature", { x: margin, y: y - 16, size: 8, font: regular, color: muted });
   page.drawText("/contractor-signature/", { x: margin, y: y - 32, size: 4, font: regular, color: rgb(1, 1, 1) });
   page.drawLine({ start: { x: 330, y }, end: { x: width - margin, y }, thickness: 0.8, color: muted });
-  page.drawText("Date", { x: 330, y: y - 16, size: 8, font: regular, color: muted });
+  page.drawText(context.contract.signedAt ? new Date(context.contract.signedAt).toLocaleDateString() : "Date", { x: 330, y: y - 16, size: 8, font: regular, color: muted });
   page.drawText("/contractor-date/", { x: 330, y: y - 32, size: 4, font: regular, color: rgb(1, 1, 1) });
 
   const pages = pdf.getPages();

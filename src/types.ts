@@ -85,6 +85,9 @@ export interface Contract {
   envelopeId?: string;
   signingUrl?: string;
   deliveryError?: string;
+  signerName?: string;
+  signerTitle?: string;
+  signedAt?: string;
   createdAt: string;
   updatedAt: string;
 }
