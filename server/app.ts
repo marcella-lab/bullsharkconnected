@@ -170,7 +170,10 @@ export function createApp(store: DataStore, esign: EsignService = new Configured
 
   const userSchema = z.object({ role: z.enum(roles), name: z.string().trim().min(2), firstName: z.string().trim().max(80).optional(), lastName: z.string().trim().max(80).optional(), email: z.string().email(), phone: z.string().trim().max(40).optional(), company: z.string().trim().max(120).optional(), trade: z.string().trim().max(120).optional(), projectIds: z.array(z.string()).default([]), jobIds: z.array(z.string()).default([]), active: z.boolean().default(true) });
   const publicUser = ({ passwordHash, ...user }: PortalUser) => user;
-  app.get("/api/users", requireRole("admin"), asyncRoute(async (_req, res) => res.json((await store.read()).users!.map(publicUser))));
+  app.get("/api/users", requireRole("admin"), asyncRoute(async (_req, res) => {
+    const data = await store.read();
+    res.json((data.users || []).map(publicUser));
+  }));
   app.post("/api/users", requireRole("admin"), asyncRoute(async (req, res) => {
     const input = userSchema.parse(req.body); const user = await store.update(async (data) => {
       if (data.users!.some((item) => item.email.toLowerCase() === input.email.toLowerCase())) throw Object.assign(new Error("That email is already in use."), { status: 409 });
