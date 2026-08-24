@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { useMemo, useState, type FormEvent } from "react";
 import { api } from "./api";
+import { ProjectFilesModal } from "./OperationsPages";
 import { currency, dateLabel, EmptyState, Field, Modal, PageHeading, ProgressBar, StatusPill, SubmitButton } from "./components";
 import type { BootstrapPayload, Contract, Job, PortalSettings, Project } from "./types";
 
@@ -79,6 +80,7 @@ type DialogState =
   | { type: "schedule"; job: Job }
   | { type: "progress"; job: Job }
   | { type: "assign"; job: Job }
+  | { type: "files"; project: Project }
   | null;
 
 export function AdminProjects({ data, mutate }: { data: BootstrapPayload; mutate: Mutation }) {
@@ -100,6 +102,7 @@ export function AdminProjects({ data, mutate }: { data: BootstrapPayload; mutate
                 <div className="project-identity"><span className="project-code">{project.number}</span><h2>{project.name}</h2><p><MapPin size={14} /> {project.address}</p></div>
                 <div className="project-summary"><div><small>Stage</small><strong>{project.currentStage}</strong></div><div><small>Progress</small><strong>{project.progress}%</strong></div><div><small>Target</small><strong>{dateLabel(project.targetDate)}</strong></div></div>
                 <button className="button button-secondary" onClick={() => setDialog({ type: "job", project })}><FilePlus2 size={16} /> Add job</button>
+                <button className="button button-secondary" onClick={() => setDialog({ type: "files", project })}>Files</button>
               </header>
               <ProgressBar value={project.progress} />
               <div className="job-list">
@@ -160,6 +163,7 @@ export function AdminProjects({ data, mutate }: { data: BootstrapPayload; mutate
       </form></Modal>}
 
       {dialog?.type === "assign" && <AssignmentModal data={data} job={dialog.job} busy={busy} close={() => setDialog(null)} submit={(body) => submit(() => mutate(`/api/jobs/${dialog.job.id}/assign`, "POST", body))} />}
+      {dialog?.type === "files" && <ProjectFilesModal data={data} project={dialog.project} role="admin" onClose={() => setDialog(null)} />}
     </>
   );
 }

@@ -2,7 +2,7 @@ import { Bell, FileUp, ReceiptText, UserPlus, UsersRound } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import { api } from "./api";
 import { currency, dateLabel, EmptyState, Field, Modal, PageHeading, StatusPill, SubmitButton } from "./components";
-import type { BootstrapPayload, PayRequest, PortalUser } from "./types";
+import type { BootstrapPayload, PayRequest, PortalUser, Project, Role } from "./types";
 import type { Mutation } from "./AdminPages";
 
 const payTone = (status: string) => status === "paid" || status === "approved" ? "green" : status === "rejected" ? "red" : status === "needs_revision" ? "orange" : "cyan";
@@ -29,3 +29,8 @@ export function SubPayRequests({ data, mutate }: { data: BootstrapPayload; mutat
 }
 
 export function NotificationsPage({ data, mutate }: { data: BootstrapPayload; mutate: Mutation }) { const notices = data.notifications || []; return <><PageHeading eyebrow="Activity inbox" title="Notifications" detail="Unread notifications remain here until you mark them read." actions={<button className="button button-secondary" onClick={() => void mutate("/api/notifications/read", "POST", { all: true })}>Mark all read</button>} /><section className="panel"><div className="compact-list">{notices.map((notice) => <article key={notice.id}><span className="mini-icon"><Bell /></span><span><strong>{notice.title}</strong><small>{notice.detail}</small></span>{!notice.readAt && <button className="button button-small" onClick={() => void mutate("/api/notifications/read", "POST", { ids: [notice.id] })}>Mark read</button>}</article>)}</div>{!notices.length && <EmptyState title="All caught up" detail="Important project activity will appear here." />}</section></> }
+
+export function ProjectFilesModal({ data, project, role, onClose }: { data: BootstrapPayload; project: Project; role: Role; onClose: () => void }) {
+  const files = (data.files || []).filter((file) => file.projectId === project.id);
+  return <Modal title={`${project.name} files`} eyebrow={`${files.length} available document${files.length === 1 ? "" : "s"}`} onClose={onClose} wide><div className="file-list">{files.map((file) => <article key={file.id}><span className="mini-icon"><FileUp /></span><span><strong>{file.name}</strong><small>{file.category || "Other"} · {file.jobIds.length ? `${file.jobIds.length} job scope(s)` : "General project file"} · {dateLabel(file.createdAt)}</small>{file.description && <small>{file.description}</small>}</span><button className="button button-small" onClick={() => void api.downloadFile(file.id, file.name, role)}>Download</button></article>)}</div>{!files.length && <EmptyState title="No files available" detail="Documents that have been shared with your access level will appear here." />}</Modal>;
+}

@@ -49,4 +49,9 @@ export const api = {
     link.click();
     URL.revokeObjectURL(url);
   },
+  downloadFile: async (fileId: string, name: string, role: Role) => {
+    const response = await fetch(`/api/files/${fileId}/download`, { headers: authToken ? { Authorization: `Bearer ${authToken}` } : { "x-user-role": role, "x-user-id": viewerIds[role] } });
+    if (!response.ok) throw new Error("You do not have access to this file.");
+    const url = URL.createObjectURL(await response.blob()); const link = document.createElement("a"); link.href = url; link.download = name; link.click(); URL.revokeObjectURL(url);
+  },
 };
