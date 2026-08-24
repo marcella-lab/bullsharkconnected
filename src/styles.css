@@ -70,6 +70,8 @@ h1, h2, h3, p { margin-top: 0; }
 .button-ghost { color: #667986; background: transparent; border-color: #dce4e7; }
 .button-dark { color: white; background: var(--navy-900); }
 .button-small { min-height: 34px; padding: 0 11px; font-size: 11px; background: white; border-color: var(--border); }
+.button.button-small.button-dark { color: white; background: var(--navy-900); border-color: var(--navy-900); }
+.button.button-small.button-primary { color: white; background: var(--cyan-600); border-color: var(--cyan-600); }
 .button-full { width: 100%; }
 .text-button { display: inline-flex; align-items: center; gap: 6px; padding: 0; border: 0; background: transparent; color: #169caf; font-size: 11px; font-weight: 800; }
 .icon-button { width: 34px; height: 34px; display: grid; place-items: center; padding: 0; border: 1px solid var(--border); border-radius: 8px; color: #5c717e; background: white; }
