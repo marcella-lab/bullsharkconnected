@@ -83,6 +83,12 @@ async function migrate(data: PortalData) {
       Object.assign(row, { length, width, footerWidth, footerDepth, slabSquareFeet, slabYardage, padYardage: slabYardage, footerYardage, totalYardage: slabYardage + footerYardage, additionalConcreteYardage: 0, wasteOverageYardage: 0, finalOrderYardage: slabYardage + footerYardage }); changed = true;
     }
   }
+  for (const job of data.jobs) {
+    if (!job.clientId) {
+      const project = data.projects.find((item) => item.id === job.projectId);
+      if (project) { job.clientId = project.clientId; job.clientName = project.clientName; changed = true; }
+    }
+  }
   if (!data.users) {
     const passwordHash = await hashPassword(temporaryPassword);
     data.users = [

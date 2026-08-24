@@ -67,6 +67,8 @@ export interface Job {
   scheduleEnd?: string;
   contractorId?: string;
   contractorName?: string;
+  clientId?: string;
+  clientName?: string;
   interestOpen: boolean;
   bidDue?: string;
 }

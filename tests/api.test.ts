@@ -108,4 +108,14 @@ describe("BullShark portal API", () => {
     const denied = await request(app).get("/api/yardage").set(headers("client", "client-1"));
     expect(denied.status).toBe(403);
   });
+
+  it("lets an admin edit both client and subcontractor assignments, but protects deletes", async () => {
+    const app = createApp(new MemoryDataStore());
+    const edited = await request(app).patch("/api/jobs/job-1").set(headers("admin", "admin-1")).send({ title: "Foundation concrete", scope: "Place and finish foundation concrete.", location: "Existing job location", price: 1000, stage: "Planned", clientId: "client-2", contractorId: "contractor-2" });
+    expect(edited.status).toBe(200);
+    expect(edited.body.clientId).toBe("client-2");
+    expect(edited.body.contractorId).toBe("contractor-2");
+    const denied = await request(app).delete("/api/jobs/job-1").set(headers("client", "client-1"));
+    expect(denied.status).toBe(403);
+  });
 });

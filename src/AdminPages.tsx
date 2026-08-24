@@ -11,6 +11,7 @@ import {
   PencilLine,
   Send,
   Settings2,
+  Trash2,
   UserRoundCheck,
 } from "lucide-react";
 import { useMemo, useState, type FormEvent } from "react";
@@ -80,6 +81,7 @@ type DialogState =
   | { type: "schedule"; job: Job }
   | { type: "progress"; job: Job }
   | { type: "assign"; job: Job }
+  | { type: "edit-job"; job: Job }
   | { type: "files"; project: Project }
   | null;
 
@@ -103,18 +105,21 @@ export function AdminProjects({ data, mutate }: { data: BootstrapPayload; mutate
                 <div className="project-summary"><div><small>Stage</small><strong>{project.currentStage}</strong></div><div><small>Progress</small><strong>{project.progress}%</strong></div><div><small>Target</small><strong>{dateLabel(project.targetDate)}</strong></div></div>
                 <button className="button button-secondary" onClick={() => setDialog({ type: "job", project })}><FilePlus2 size={16} /> Add job</button>
                 <button className="button button-secondary" onClick={() => setDialog({ type: "files", project })}>Files</button>
+                <button className="button button-danger" onClick={() => { if (window.confirm(`Delete ${project.name} and all of its jobs? This cannot be undone.`)) void submit(() => mutate(`/api/projects/${project.id}`, "DELETE")); }}><Trash2 size={15} /> Delete project</button>
               </header>
               <ProgressBar value={project.progress} />
               <div className="job-list">
                 {jobs.map((job) => (
                   <article className="job-row" key={job.id}>
                     <div className="job-main"><span><StatusPill tone={toneForStatus(job.status)}>{job.status.replaceAll("_", " ")}</StatusPill><small>{job.number}</small></span><h3>{job.title}</h3><p>{job.scope}</p></div>
-                    <div className="job-facts"><span><small>Price</small><strong>{currency.format(job.price)}</strong></span><span><small>Subcontractor</small><strong>{job.contractorName || "Unassigned"}</strong></span><span><small>Schedule</small><strong>{job.scheduleStart ? `${dateLabel(job.scheduleStart)} – ${dateLabel(job.scheduleEnd)}` : "Not scheduled"}</strong></span></div>
+                    <div className="job-facts"><span><small>Price</small><strong>{currency.format(job.price)}</strong></span><span><small>Client</small><strong>{job.clientName || project.clientName}</strong></span><span><small>Subcontractor</small><strong>{job.contractorName || "Unassigned"}</strong></span><span><small>Schedule</small><strong>{job.scheduleStart ? `${dateLabel(job.scheduleStart)} – ${dateLabel(job.scheduleEnd)}` : "Not scheduled"}</strong></span></div>
                     <div className="job-progress"><strong>{job.progress}%</strong><ProgressBar value={job.progress} /><small>{job.stage}</small></div>
                     <div className="row-actions">
                       <button onClick={() => setDialog({ type: "schedule", job })}><CalendarPlus size={15} /> Schedule</button>
                       <button onClick={() => setDialog({ type: "progress", job })}><PencilLine size={15} /> Progress</button>
+                      <button onClick={() => setDialog({ type: "edit-job", job })}><PencilLine size={15} /> Edit job</button>
                       <button className="action-emphasis" onClick={() => setDialog({ type: "assign", job })}><UserRoundCheck size={15} /> {job.contractorId ? "Reassign" : "Assign"}</button>
+                      <button className="action-danger" onClick={() => { if (window.confirm(`Delete job ${job.title}? This cannot be undone.`)) void submit(() => mutate(`/api/jobs/${job.id}`, "DELETE")); }}><Trash2 size={15} /> Delete</button>
                     </div>
                   </article>
                 ))}
@@ -135,8 +140,9 @@ export function AdminProjects({ data, mutate }: { data: BootstrapPayload; mutate
         <div className="form-actions"><button type="button" className="button button-ghost" onClick={() => setDialog(null)}>Cancel</button><SubmitButton busy={busy}>Create project</SubmitButton></div>
       </form></Modal>}
 
-      {dialog?.type === "job" && <Modal title={`Add job to ${dialog.project.name}`} eyebrow="Individual job" onClose={() => setDialog(null)} wide><form className="form-grid" onSubmit={(event) => { event.preventDefault(); const form = new FormData(event.currentTarget); void submit(() => mutate(`/api/projects/${dialog.project.id}/jobs`, "POST", { title: form.get("title"), scope: form.get("scope"), location: form.get("location"), price: form.get("price"), stage: form.get("stage"), scheduleStart: form.get("scheduleStart"), scheduleEnd: form.get("scheduleEnd"), interestOpen: form.get("interestOpen") === "on", bidDue: form.get("bidDue") })); }}>
+      {dialog?.type === "job" && <Modal title={`Add job to ${dialog.project.name}`} eyebrow="Individual job" onClose={() => setDialog(null)} wide><form className="form-grid" onSubmit={(event) => { event.preventDefault(); const form = new FormData(event.currentTarget); void submit(() => mutate(`/api/projects/${dialog.project.id}/jobs`, "POST", { title: form.get("title"), scope: form.get("scope"), location: form.get("location"), price: form.get("price"), stage: form.get("stage"), scheduleStart: form.get("scheduleStart"), scheduleEnd: form.get("scheduleEnd"), interestOpen: form.get("interestOpen") === "on", bidDue: form.get("bidDue"), clientId: form.get("clientId"), contractorId: "" })); }}>
         <Field label="Job name"><input required name="title" placeholder="Structural framing" /></Field>
+        <Field label="Assigned client"><select required name="clientId" defaultValue={dialog.project.clientId}><option value="">Select client</option>{data.clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}</select></Field>
         <Field label="Stage"><select name="stage">{data.settings.stages.map((stage) => <option key={stage.name}>{stage.name}</option>)}</select></Field>
         <Field label="Scope" ><textarea required name="scope" rows={3} placeholder="Describe the complete subcontractor scope…" /></Field>
         <Field label="Location"><input required name="location" defaultValue={dialog.project.address} /></Field>
@@ -147,6 +153,8 @@ export function AdminProjects({ data, mutate }: { data: BootstrapPayload; mutate
         <label className="check-field"><input type="checkbox" name="interestOpen" /> <span><strong>Open as a potential job</strong><small>Subcontractors can submit an interest form.</small></span></label>
         <div className="form-actions"><button type="button" className="button button-ghost" onClick={() => setDialog(null)}>Cancel</button><SubmitButton busy={busy}>Add job</SubmitButton></div>
       </form></Modal>}
+
+      {dialog?.type === "edit-job" && <Modal title="Edit job and assigned users" eyebrow={dialog.job.number} onClose={() => setDialog(null)} wide><form className="form-grid" onSubmit={(event) => { event.preventDefault(); const form = new FormData(event.currentTarget); void submit(() => mutate(`/api/jobs/${dialog.job.id}`, "PATCH", { title: form.get("title"), scope: form.get("scope"), location: form.get("location"), price: form.get("price"), stage: form.get("stage"), clientId: form.get("clientId"), contractorId: form.get("contractorId") })); }}><Field label="Job name"><input required name="title" defaultValue={dialog.job.title} /></Field><Field label="Stage"><select name="stage" defaultValue={dialog.job.stage}>{data.settings.stages.map((stage) => <option key={stage.name}>{stage.name}</option>)}</select></Field><Field label="Assigned client"><select required name="clientId" defaultValue={dialog.job.clientId || data.projects.find((project) => project.id === dialog.job.projectId)?.clientId}><option value="">Select client</option>{data.clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}</select></Field><Field label="Assigned subcontractor"><select name="contractorId" defaultValue={dialog.job.contractorId || ""}><option value="">No subcontractor selected</option>{data.contractors.map((contractor) => <option key={contractor.id} value={contractor.id}>{contractor.company} · {contractor.trade}</option>)}</select></Field><Field label="Scope"><textarea required name="scope" rows={3} defaultValue={dialog.job.scope} /></Field><Field label="Location"><input required name="location" defaultValue={dialog.job.location} /></Field><Field label="Job price"><input required type="number" min="0" step="100" name="price" defaultValue={dialog.job.price} /></Field><div className="form-actions"><button type="button" className="button button-ghost" onClick={() => setDialog(null)}>Cancel</button><SubmitButton busy={busy}>Save job and assignments</SubmitButton></div></form></Modal>}
 
       {dialog?.type === "schedule" && <Modal title="Schedule job" eyebrow={dialog.job.number} onClose={() => setDialog(null)}><form className="form-grid" onSubmit={(event) => { event.preventDefault(); const form = new FormData(event.currentTarget); void submit(() => mutate(`/api/jobs/${dialog.job.id}/schedule`, "POST", { scheduleStart: form.get("scheduleStart"), scheduleEnd: form.get("scheduleEnd") })); }}>
         <div className="callout"><CalendarPlus size={18} /><span><strong>{dialog.job.title}</strong><small>Dates are immediately visible to the assigned client and subcontractor.</small></span></div>
