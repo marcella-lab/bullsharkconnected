@@ -2,9 +2,15 @@ import { Check, X } from "lucide-react";
 import type { PropsWithChildren, ReactNode } from "react";
 
 export const currency = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
-export const dateLabel = (value?: string) => value
-  ? new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(new Date(`${value}T12:00:00`))
-  : "Not scheduled";
+export const dateLabel = (value?: string) => {
+  if (!value) return "Not scheduled";
+  // Date-only values are interpreted at midday to avoid time-zone shifts;
+  // ISO timestamps (such as a user's last login) are parsed as-is.
+  const date = new Date(value.includes("T") ? value : `${value}T12:00:00`);
+  return Number.isNaN(date.getTime())
+    ? "Never"
+    : new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(date);
+};
 
 export function ProgressBar({ value }: { value: number }) {
   return (
