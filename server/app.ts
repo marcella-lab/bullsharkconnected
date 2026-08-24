@@ -37,11 +37,12 @@ const notify = (data: PortalData, userId: string, type: string, title: string, d
 
 const userById = (data: PortalData, idValue: string) => data.users!.find((user) => user.id === idValue);
 const parsePair = (value: string, label: string) => { const match = value.trim().match(/^(\d+(?:\.\d+)?)\s*x\s*(\d+(?:\.\d+)?)$/i); if (!match) throw Object.assign(new Error(label === "footer size" ? "Enter footer size as Width x Depth (example: 18x24)." : "Enter dimensions as Length x Width (example: 60x40)."), { status: 400 }); return [Number(match[1]), Number(match[2])] as const; };
-const calculateYardage = (input: { dimensions: string; thickness: number; footers: string; concreteCost?: number; subCost?: number; contractCost?: number; additionalCosts?: number }) => {
+const calculateYardage = (input: { dimensions: string; thickness: number; footers: string; additionalConcreteYardage?: number; wasteOverageYardage?: number }) => {
   const [length, width] = parsePair(input.dimensions, "dimensions"); const [footerWidth, footerDepth] = parsePair(input.footers, "footer size");
   if (!(input.thickness > 0)) throw Object.assign(new Error("Thickness must be greater than zero."), { status: 400 });
-  const padYardage = (length * width * (input.thickness / 12)) / 27; const footerYardage = ((2 * (length + width)) * (footerWidth / 12) * (footerDepth / 12)) / 27;
-  return { length, width, footerWidth, footerDepth, padYardage, footerYardage, totalYardage: padYardage + footerYardage };
+  const slabSquareFeet = length * width; const slabYardage = (length * width * input.thickness) / 324; const footerYardage = ((2 * (length + width)) * (footerWidth / 12) * (footerDepth / 12)) / 27; const totalYardage = slabYardage + footerYardage;
+  const additionalConcreteYardage = input.additionalConcreteYardage || 0; const wasteOverageYardage = input.wasteOverageYardage || 0;
+  return { length, width, footerWidth, footerDepth, slabSquareFeet, slabYardage, padYardage: slabYardage, footerYardage, totalYardage, additionalConcreteYardage, wasteOverageYardage, finalOrderYardage: totalYardage + additionalConcreteYardage + wasteOverageYardage };
 };
 
 const requireRole = (...allowed: Role[]) => (req: Request, res: Response, next: NextFunction) => {
@@ -213,6 +214,8 @@ export function createApp(store: DataStore, esign: EsignService = new Configured
     subCost: z.coerce.number().nonnegative().default(0),
     contractCost: z.coerce.number().nonnegative().default(0),
     additionalCosts: z.coerce.number().nonnegative().default(0),
+    additionalConcreteYardage: z.coerce.number().nonnegative().default(0),
+    wasteOverageYardage: z.coerce.number().nonnegative().default(0),
     notes: z.string().max(3000).optional(),
   });
   const supplierSchema = z.object({ company: z.string().trim().min(1).max(160), contactName: z.string().trim().max(120).optional(), phone: z.string().trim().max(50).optional(), email: z.string().email().optional().or(z.literal("")), state: z.string().trim().max(8).optional(), notes: z.string().trim().max(2000).optional() });

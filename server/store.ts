@@ -74,6 +74,15 @@ async function migrate(data: PortalData) {
   for (const key of ["files", "payRequests", "potentialJobs", "bids", "messages", "notifications", "yardageRows", "concreteSuppliers"] as const) {
     if (!data[key]) { (data as unknown as Record<string, unknown>)[key] = []; changed = true; }
   }
+  for (const row of data.yardageRows || []) {
+    if (row.slabYardage === undefined || row.finalOrderYardage === undefined) {
+      const parse = (text: string) => text.match(/^(\d+(?:\.\d+)?)\s*x\s*(\d+(?:\.\d+)?)$/i)?.slice(1).map(Number) || [0, 0];
+      const [length, width] = parse(row.dimensions); const [footerWidth, footerDepth] = parse(row.footers);
+      const slabSquareFeet = length * width; const slabYardage = (slabSquareFeet * row.thickness) / 324;
+      const footerYardage = (2 * (length + width) * (footerWidth / 12) * (footerDepth / 12)) / 27;
+      Object.assign(row, { length, width, footerWidth, footerDepth, slabSquareFeet, slabYardage, padYardage: slabYardage, footerYardage, totalYardage: slabYardage + footerYardage, additionalConcreteYardage: 0, wasteOverageYardage: 0, finalOrderYardage: slabYardage + footerYardage }); changed = true;
+    }
+  }
   if (!data.users) {
     const passwordHash = await hashPassword(temporaryPassword);
     data.users = [

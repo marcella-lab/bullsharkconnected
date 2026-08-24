@@ -94,12 +94,15 @@ describe("BullShark portal API", () => {
     const app = createApp(new MemoryDataStore());
     const created = await request(app).post("/api/yardage").set(headers("admin", "admin-1")).send({
       status: "ACTIVE", state: "NV", concreteCompany: "Cemex", client: "Angelo / Debbie Spinelli",
-      dimensions: "60 x 40", thickness: 6, footers: "18x24", concreteCost: 13000, subCost: 13600, contractCost: 32000,
+      dimensions: "60 x 40", thickness: 6, footers: "18x24", additionalConcreteYardage: 2, wasteOverageYardage: 1.5, concreteCost: 13000, subCost: 13600, contractCost: 32000,
     });
     expect(created.status).toBe(201);
     expect(created.body.padYardage).toBeCloseTo(44.4444, 3);
     expect(created.body.footerYardage).toBeCloseTo(22.2222, 3);
     expect(created.body.totalYardage).toBeCloseTo(66.6666, 3);
+    expect(created.body.slabSquareFeet).toBe(2400);
+    expect(created.body.slabYardage).toBeCloseTo(44.4444, 3);
+    expect(created.body.finalOrderYardage).toBeCloseTo(70.1666, 3);
     expect(created.body.concreteCost + created.body.subCost).toBe(26600);
     expect(created.body.contractCost - created.body.concreteCost - created.body.subCost).toBe(5400);
     const denied = await request(app).get("/api/yardage").set(headers("client", "client-1"));
