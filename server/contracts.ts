@@ -119,7 +119,7 @@ export async function generateContractPdf(context: ContractContext) {
   } else page.drawText("Subcontractor signature", { x: margin, y: y - 16, size: 8, font: regular, color: muted });
   page.drawText("/contractor-signature/", { x: margin, y: y - 32, size: 4, font: regular, color: rgb(1, 1, 1) });
   page.drawLine({ start: { x: 330, y }, end: { x: width - margin, y }, thickness: 0.8, color: muted });
-  page.drawText(context.contract.signedAt ? new Date(context.contract.signedAt).toLocaleDateString() : "Date", { x: 330, y: y - 16, size: 8, font: regular, color: muted });
+  page.drawText(context.contract.signedAt ? `Signed: ${new Date(context.contract.signedAt).toLocaleDateString("en-US")}` : "Date", { x: 330, y: y - 16, size: context.contract.signedAt ? 9 : 8, font: context.contract.signedAt ? bold : regular, color: muted });
   page.drawText("/contractor-date/", { x: 330, y: y - 32, size: 4, font: regular, color: rgb(1, 1, 1) });
 
   const pages = pdf.getPages();
