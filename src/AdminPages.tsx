@@ -83,6 +83,7 @@ type DialogState =
   | { type: "assign"; job: Job }
   | { type: "edit-job"; job: Job }
   | { type: "files"; project: Project }
+  | { type: "plans"; project: Project }
   | null;
 
 export function AdminProjects({ data, mutate, canCreate = true }: { data: BootstrapPayload; mutate: Mutation; canCreate?: boolean }) {
@@ -105,6 +106,7 @@ export function AdminProjects({ data, mutate, canCreate = true }: { data: Bootst
                 <div className="project-summary"><div><small>Stage</small><strong>{project.currentStage}</strong></div><div><small>Progress</small><strong>{project.progress}%</strong></div><div><small>Target</small><strong>{dateLabel(project.targetDate)}</strong></div></div>
                 {canCreate && <button className="button button-secondary manager-allowed" onClick={() => setDialog({ type: "job", project })}><FilePlus2 size={16} /> Add job</button>}
                 <button className="button button-secondary" onClick={() => setDialog({ type: "files", project })}>Files</button>
+                <button className="button button-secondary" onClick={() => setDialog({ type: "plans", project })}>Plans</button>
                 <button className="button button-danger" onClick={() => { if (window.confirm(`Delete ${project.name} and all of its jobs? This cannot be undone.`)) void submit(() => mutate(`/api/projects/${project.id}`, "DELETE")); }}><Trash2 size={15} /> Delete project</button>
               </header>
               <ProgressBar value={project.progress} />
@@ -173,6 +175,7 @@ export function AdminProjects({ data, mutate, canCreate = true }: { data: Bootst
 
       {dialog?.type === "assign" && <AssignmentModal data={data} job={dialog.job} busy={busy} close={() => setDialog(null)} submit={(body) => submit(() => mutate(`/api/jobs/${dialog.job.id}/assign`, "POST", body))} />}
       {dialog?.type === "files" && <ProjectFilesModal data={data} project={dialog.project} role="admin" onClose={() => setDialog(null)} />}
+      {dialog?.type === "plans" && <ProjectFilesModal data={data} project={dialog.project} role="admin" blueprintMode onClose={() => setDialog(null)} />}
     </>
   );
 }
