@@ -1,0 +1,20 @@
+import { useMemo, useState, type FormEvent } from "react";
+import type { Mutation } from "./AdminPages";
+import { currency, EmptyState, Field, PageHeading, SubmitButton } from "./components";
+import type { BootstrapPayload } from "./types";
+
+export function SpendingPage({ data, mutate }: { data: BootstrapPayload; mutate: Mutation }) {
+  const [projectId, setProjectId] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const expenses = (data.projectExpenses || []).filter((item) => !projectId || item.projectId === projectId);
+  const total = useMemo(() => expenses.reduce((sum, item) => sum + item.amount, 0), [expenses]);
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault(); const form = new FormData(event.currentTarget); setBusy(true);
+    setError("");
+    try { await mutate("/api/project-expenses", "POST", { projectId: form.get("projectId"), category: form.get("category"), description: form.get("description"), amount: form.get("amount"), spentOn: form.get("spentOn") }); event.currentTarget.reset(); } catch (cause) { setError(cause instanceof Error ? cause.message : "Unable to save spending."); } finally { setBusy(false); }
+  };
+  return <><PageHeading eyebrow="Admin financial control" title="Project spending" detail="Track vendor, material, labor, travel, and other actual expenses by project. This page is visible only to Admin users." />
+    <section className="metric-grid"><article className="metric-card"><span>Recorded spending</span><strong>{currency.format(total)}</strong><small>{expenses.length} expense record{expenses.length === 1 ? "" : "s"}</small></article><article className="metric-card"><span>Projects tracked</span><strong>{new Set(expenses.map((item) => item.projectId)).size}</strong><small>Filtered financial view</small></article></section>
+    <div className="dashboard-grid"><section className="panel"><h2>Add spending</h2><form className="form-grid" onSubmit={submit}><Field label="Project"><select required name="projectId"><option value="">Select project</option>{data.projects.map((project) => <option value={project.id} key={project.id}>{project.name}</option>)}</select></Field><Field label="Category"><input required name="category" placeholder="Materials, labor, supplier, travel..." /></Field><Field label="Amount"><input required name="amount" type="number" min="0.01" step="0.01" /></Field><Field label="Date spent"><input required name="spentOn" type="date" defaultValue={new Date().toISOString().slice(0, 10)} /></Field><Field label="Description"><input required name="description" placeholder="What was purchased or paid" /></Field>{error && <p className="form-error" role="alert">{error}</p>}<SubmitButton busy={busy}>Add expense</SubmitButton></form></section><section className="panel"><div className="panel-heading"><div><h2>Spending records</h2><p>Use the filter to focus on one project.</p></div><select value={projectId} onChange={(event) => setProjectId(event.target.value)}><option value="">All projects</option>{data.projects.map((project) => <option value={project.id} key={project.id}>{project.name}</option>)}</select></div>{expenses.length ? <div className="compact-list">{expenses.map((expense) => <article key={expense.id}><span><strong>{expense.category}</strong><small>{data.projects.find((project) => project.id === expense.projectId)?.name} · {expense.spentOn}</small><small>{expense.description}</small></span><span className="potential-actions"><strong>{currency.format(expense.amount)}</strong><button className="button button-small button-danger" onClick={() => { if (!window.confirm("Delete this expense record?")) return; void mutate(`/api/project-expenses/${expense.id}`, "DELETE").catch((cause) => setError(cause instanceof Error ? cause.message : "Unable to delete spending.")); }}>Delete</button></span></article>)}</div> : <EmptyState title="No spending recorded" detail="Add the first expense to begin tracking a project." />}</section></div></>;
+}

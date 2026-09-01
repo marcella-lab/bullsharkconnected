@@ -12,6 +12,25 @@ let preview: { role: Role; userId?: string } | null = null;
 export const setSessionToken = (token: string) => { authToken = token; localStorage.setItem("bullshark-session", token); };
 export const clearSessionToken = () => { authToken = ""; localStorage.removeItem("bullshark-session"); };
 export const setPreview = (value: { role: Role; userId?: string } | null) => { preview = value; };
+const resourceHeaders = (role: Role) => ({
+  ...(authToken ? { Authorization: `Bearer ${authToken}` } : { "x-user-role": role, "x-user-id": viewerIds[role] }),
+  ...(preview ? { "x-preview-role": preview.role, ...(preview.userId ? { "x-preview-user-id": preview.userId } : {}) } : {}),
+});
+const openAuthenticatedBlob = async (path: string, role: Role) => {
+  // iOS blocks a tab opened after an awaited request, so reserve it immediately.
+  const target = window.open("about:blank", "_blank");
+  try {
+    const response = await fetch(path, { headers: resourceHeaders(role) });
+    if (!response.ok) throw new Error("This invoice file could not be opened.");
+    const url = URL.createObjectURL(await response.blob());
+    if (target) target.location.href = url;
+    else window.location.href = url;
+    window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  } catch (error) {
+    target?.close();
+    throw error;
+  }
+};
 
 async function request<T>(path: string, role: Role, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
@@ -60,4 +79,6 @@ export const api = {
     if (!response.ok) throw new Error("You do not have access to this file.");
     return URL.createObjectURL(await response.blob());
   },
+  openFile: (fileId: string, role: Role) => openAuthenticatedBlob(`/api/files/${fileId}/preview`, role),
+  openPayRequestFile: (payId: string, fileId: string, role: Role) => openAuthenticatedBlob(`/api/pay-requests/${payId}/files/${fileId}/preview`, role),
 };

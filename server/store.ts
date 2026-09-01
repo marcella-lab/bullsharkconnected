@@ -1,4 +1,4 @@
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { access, mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import type { PortalData } from "../src/types.js";
 import { seedData } from "./seed.js";
@@ -71,7 +71,9 @@ export class MemoryDataStore implements DataStore {
 /** Adds new collections and accounts without altering existing projects, jobs, or contracts. */
 async function migrate(data: PortalData) {
   let changed = false;
-  for (const key of ["files", "payRequests", "potentialJobs", "bids", "messages", "notifications", "yardageRows", "concreteSuppliers"] as const) {
+  const settingsDefaults = { companyAddress: "", companyPhone: "", companyWebsite: "", defaultClientMessage: "", defaultSubcontractorMessage: "", scheduleDays: 14, weekendWorkAllowed: false, notificationRules: {}, clientPortal: { schedule: true, files: true, photos: true, progress: true }, subcontractorPortal: { sharedFiles: true, schedule: true, projectAddress: true, payRequests: true } };
+  for (const [key, value] of Object.entries(settingsDefaults)) if ((data.settings as unknown as Record<string, unknown>)[key] === undefined) { (data.settings as unknown as Record<string, unknown>)[key] = value; changed = true; }
+  for (const key of ["files", "payRequests", "clientInvoices", "projectInvoiceLogs", "projectExpenses", "potentialJobs", "bids", "messages", "notifications", "yardageRows", "concreteSuppliers"] as const) {
     if (!data[key]) { (data as unknown as Record<string, unknown>)[key] = []; changed = true; }
   }
   for (const row of data.yardageRows || []) {
@@ -82,6 +84,9 @@ async function migrate(data: PortalData) {
       const footerYardage = (2 * (length + width) * (footerWidth / 12) * (footerDepth / 12)) / 27;
       Object.assign(row, { length, width, footerWidth, footerDepth, slabSquareFeet, slabYardage, padYardage: slabYardage, footerYardage, totalYardage: slabYardage + footerYardage, additionalConcreteYardage: 0, wasteOverageYardage: 0, finalOrderYardage: slabYardage + footerYardage }); changed = true;
     }
+  }
+  for (const project of data.projects) {
+    if (!project.milestones) { project.milestones = []; changed = true; }
   }
   for (const job of data.jobs) {
     if (!job.clientId) {
@@ -98,5 +103,33 @@ async function migrate(data: PortalData) {
     ];
     changed = true;
   }
+  // Older client accounts were stored only in users. Keep a matching client
+  // record so they appear in the assignment dropdown without being recreated.
+  for (const user of data.users.filter((item) => item.role === "client")) {
+    if (!data.clients.some((client) => client.id === user.id || client.email.toLowerCase() === user.email.toLowerCase())) {
+      data.clients.push({ id: user.id, name: user.name, email: user.email, phone: user.phone, company: user.company });
+      changed = true;
+    }
+  }
+  // Remove gallery records for photos that no longer have a file on disk. This
+  // keeps users from seeing a permanent "Loading photo" tile after an old upload.
+  const availableFiles = [];
+  for (const file of data.files || []) {
+    if (!file.mimeType.startsWith("image/")) { availableFiles.push(file); continue; }
+    try { await access(file.path); availableFiles.push(file); } catch { changed = true; }
+  }
+  if (availableFiles.length !== (data.files || []).length) data.files = availableFiles;
+
+  const demoPasswordHash = await hashPassword(temporaryPassword);
+  const demoClientId = "demo-client-1";
+  const demoContractorId = "demo-contractor-1";
+  if (!data.clients.some((client) => client.id === demoClientId)) { data.clients.push({ id: demoClientId, name: "Demo Client", email: "demo.client@bullsharkconnected.org", company: "Demo Client Company" }); changed = true; }
+  if (!data.contractors.some((contractor) => contractor.id === demoContractorId)) { data.contractors.push({ id: demoContractorId, name: "Demo Subcontractor", email: "demo.subcontractor@bullsharkconnected.org", phone: "(555) 010-3000", company: "Demo Field Company", trade: "Concrete" }); changed = true; }
+  const demoAccounts = [
+    { id: demoClientId, role: "client" as const, name: "Demo Client", email: "demo.client@bullsharkconnected.org", company: "Demo Client Company", projectIds: data.projects.slice(0, 1).map((project) => project.id), jobIds: [] },
+    { id: "demo-project-manager-1", role: "project_manager" as const, name: "Demo Project Manager", email: "demo.manager@bullsharkconnected.org", company: "BullShark Connected", projectIds: [], jobIds: [] },
+    { id: demoContractorId, role: "subcontractor" as const, name: "Demo Subcontractor", email: "demo.subcontractor@bullsharkconnected.org", company: "Demo Field Company", trade: "Concrete", projectIds: data.projects.slice(0, 1).map((project) => project.id), jobIds: data.jobs.slice(0, 1).map((job) => job.id) },
+  ];
+  for (const account of demoAccounts) if (!data.users.some((user) => user.id === account.id)) { data.users.push({ ...account, active: true, mustChangePassword: true, passwordHash: demoPasswordHash, notificationPreferences: {} }); changed = true; }
   return changed;
 }

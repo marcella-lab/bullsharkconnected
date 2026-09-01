@@ -2,6 +2,13 @@ export type Role = "admin" | "project_manager" | "client" | "subcontractor";
 
 export type JobStatus = "planned" | "scheduled" | "in_progress" | "blocked" | "complete";
 export type ProjectStatus = "active" | "on_hold" | "complete";
+export interface ProjectMilestone {
+  id: string;
+  title: string;
+  date: string;
+  details?: string;
+  createdAt: string;
+}
 export type ContractStatus = "draft" | "ready" | "sent" | "signed" | "failed";
 
 export interface StageOption {
@@ -18,12 +25,23 @@ export interface PortalSettings {
   esignProvider: "demo" | "docusign";
   contractTemplate: string;
   stages: StageOption[];
+  companyAddress?: string;
+  companyPhone?: string;
+  companyWebsite?: string;
+  defaultClientMessage?: string;
+  defaultSubcontractorMessage?: string;
+  scheduleDays?: number;
+  weekendWorkAllowed?: boolean;
+  notificationRules?: Record<string, { inApp: boolean; sms: boolean; email: boolean }>;
+  clientPortal?: { schedule: boolean; files: boolean; photos: boolean; progress: boolean };
+  subcontractorPortal?: { sharedFiles: boolean; schedule: boolean; projectAddress: boolean; payRequests: boolean };
 }
 
 export interface Client {
   id: string;
   name: string;
   email: string;
+  phone?: string;
   company?: string;
 }
 
@@ -50,6 +68,8 @@ export interface Project {
   startDate: string;
   targetDate: string;
   status: ProjectStatus;
+  fieldNotes?: string;
+  milestones?: ProjectMilestone[];
 }
 
 export interface Job {
@@ -71,6 +91,8 @@ export interface Job {
   clientName?: string;
   interestOpen: boolean;
   bidDue?: string;
+  laborCost?: number;
+  privateNotes?: string;
 }
 
 export interface Contract {
@@ -164,6 +186,9 @@ export interface PayRequest {
   invoice: PayRequestAttachment; attachments: PayRequestAttachment[]; status: PayRequestStatus; adminNotes?: string;
   paymentDate?: string; paymentReference?: string; readByAdmin: boolean; createdAt: string; updatedAt: string; activity: PayRequestEvent[];
 }
+export interface ClientInvoice { id: string; projectId: string; clientId: string; invoiceNumber: string; invoiceDate: string; dueDate?: string; amount: number; description: string; status: "draft" | "sent" | "paid" | "void"; createdAt: string; updatedAt: string; }
+export interface ProjectInvoiceLog { id: string; projectId: string; invoiceNumber: string; invoiceDate: string; amount: number; description?: string; fileId?: string; fileName?: string; purchasedByContractorId?: string; purchasedByContractorName?: string; createdBy: string; createdByName: string; createdAt: string; }
+export interface ProjectExpense { id: string; projectId: string; category: string; description: string; amount: number; spentOn: string; createdAt: string; createdBy: string; }
 
 export interface PotentialJob {
   id: string; projectId: string; title: string; trade: string; scope: string; location: string;
@@ -175,7 +200,7 @@ export interface PortalMessage { id: string; contextType: "project" | "job" | "p
 export interface Notification { id: string; userId: string; type: string; title: string; detail: string; href: string; readAt?: string; priority: "normal" | "high"; createdAt: string; }
 export type YardageStatus = "ACTIVE" | "INACTIVE" | "POTENTIAL" | "COMPLETED";
 export interface YardageRow { id: string; status: YardageStatus; state: string; concreteCompany: string; client: string; projectId?: string; dimensions: string; thickness: number; footers: string; length: number; width: number; footerWidth: number; footerDepth: number; slabSquareFeet: number; slabYardage: number; footerYardage: number; totalYardage: number; additionalConcreteYardage: number; wasteOverageYardage: number; finalOrderYardage: number; /* retained for existing saved rows */ padYardage?: number; concreteCost: number; subCost: number; contractCost: number; additionalCosts: number; notes?: string; createdAt: string; updatedAt: string; createdBy: string; updatedBy: string; }
-export interface ConcreteSupplier { id: string; company: string; contactName?: string; phone?: string; email?: string; state?: string; notes?: string; }
+export interface ConcreteSupplier { id: string; company: string; supplierType?: string; contactName?: string; phone?: string; email?: string; state?: string; notes?: string; }
 
 export interface PortalData {
   settings: PortalSettings;
@@ -189,6 +214,9 @@ export interface PortalData {
   users?: PortalUser[];
   files?: PortalFile[];
   payRequests?: PayRequest[];
+  clientInvoices?: ClientInvoice[];
+  projectInvoiceLogs?: ProjectInvoiceLog[];
+  projectExpenses?: ProjectExpense[];
   potentialJobs?: PotentialJob[];
   bids?: Bid[];
   messages?: PortalMessage[];

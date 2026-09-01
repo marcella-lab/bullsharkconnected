@@ -129,4 +129,68 @@ describe("BullShark portal API", () => {
     expect(created.status).toBe(201);
     expect(write.status).toBe(403);
   });
+
+  it("makes a newly created client account available for project assignment", async () => {
+    const app = createApp(new MemoryDataStore());
+    const created = await request(app).post("/api/users").set(headers("admin", "admin-1")).send({ role: "client", name: "New Client", email: "new.client@example.com", projectIds: [], jobIds: [], active: true });
+    expect(created.status).toBe(201);
+    const project = await request(app).post("/api/projects").set(headers("admin", "admin-1")).send({ name: "New Client Project", address: "100 Main Street", clientId: created.body.id, manager: "Project Manager", budget: 1000, startDate: "2026-09-01", targetDate: "2026-09-30" });
+    expect(project.status).toBe(201);
+    expect(project.body.clientId).toBe(created.body.id);
+    expect(project.body.clientName).toBe("New Client");
+  });
+
+  it("lets clients manage only their own project files while admins retain full control", async () => {
+    const app = createApp(new MemoryDataStore());
+    const clientFile = await request(app).post("/api/files").set(headers("client", "client-1")).send({ projectId: "project-1", jobIds: [], name: "Client photo.jpg", mimeType: "image/jpeg", contentBase64: Buffer.from("client image").toString("base64"), category: "Photos", description: "Client upload", visibility: "client" });
+    expect(clientFile.status).toBe(201);
+    const ownEdit = await request(app).patch(`/api/files/${clientFile.body.id}`).set(headers("client", "client-1")).send({ name: "Updated client photo.jpg" });
+    expect(ownEdit.status).toBe(200);
+    const adminFile = await request(app).post("/api/files").set(headers("admin", "admin-1")).send({ projectId: "project-1", jobIds: [], name: "Admin plan.pdf", mimeType: "application/pdf", contentBase64: Buffer.from("admin document").toString("base64"), category: "Plans", description: "Admin upload", visibility: "client" });
+    expect(adminFile.status).toBe(201);
+    const forbidden = await request(app).delete(`/api/files/${adminFile.body.id}`).set(headers("client", "client-1"));
+    expect(forbidden.status).toBe(403);
+    const ownDelete = await request(app).delete(`/api/files/${clientFile.body.id}`).set(headers("client", "client-1"));
+    expect(ownDelete.status).toBe(200);
+  });
+
+  it("separates file access between client and assigned subcontractor audiences", async () => {
+    const app = createApp(new MemoryDataStore());
+    const clientOnly = await request(app).post("/api/files").set(headers("admin", "admin-1")).send({ projectId: "project-1", jobIds: ["job-1"], name: "Client only.txt", mimeType: "text/plain", contentBase64: Buffer.from("client").toString("base64"), category: "Other", description: "", visibility: "client" });
+    const subcontractorOnly = await request(app).post("/api/files").set(headers("admin", "admin-1")).send({ projectId: "project-1", jobIds: ["job-1"], name: "Subcontractor only.txt", mimeType: "text/plain", contentBase64: Buffer.from("subcontractor").toString("base64"), category: "Other", description: "", visibility: "assigned_subcontractor" });
+
+    const clientData = await request(app).get("/api/bootstrap").set(headers("client", "client-1"));
+    const subcontractorData = await request(app).get("/api/bootstrap").set(headers("subcontractor", "contractor-1"));
+    expect(clientData.body.files.map((file: { id: string }) => file.id)).toContain(clientOnly.body.id);
+    expect(clientData.body.files.map((file: { id: string }) => file.id)).not.toContain(subcontractorOnly.body.id);
+    expect(subcontractorData.body.files.map((file: { id: string }) => file.id)).toContain(subcontractorOnly.body.id);
+    expect(subcontractorData.body.files.map((file: { id: string }) => file.id)).not.toContain(clientOnly.body.id);
+
+    expect((await request(app).get(`/api/files/${clientOnly.body.id}/download`).set(headers("subcontractor", "contractor-1"))).status).toBe(403);
+    expect((await request(app).get(`/api/files/${subcontractorOnly.body.id}/download`).set(headers("client", "client-1"))).status).toBe(403);
+  });
+
+  it("opens invoice files for the submitting subcontractor and authorized staff", async () => {
+    const app = createApp(new MemoryDataStore());
+    const created = await request(app).post("/api/pay-requests").set(headers("subcontractor", "contractor-1")).send({ projectId: "project-1", jobId: "job-1", amountRequested: 500, invoiceNumber: "INV-OPEN-1", invoiceDate: "2026-09-01", description: "Test invoice", invoice: { name: "invoice.txt", mimeType: "text/plain", contentBase64: Buffer.from("invoice contents").toString("base64") }, attachments: [] });
+    expect(created.status).toBe(201);
+    const path = `/api/pay-requests/${created.body.id}/files/${created.body.invoice.id}/preview`;
+    expect((await request(app).get(path).set(headers("subcontractor", "contractor-1"))).status).toBe(200);
+    expect((await request(app).get(path).set(headers("admin", "admin-1"))).status).toBe(200);
+    expect((await request(app).get(path).set(headers("client", "client-1"))).status).toBe(403);
+  });
+
+  it("persists project spending and deletes a project invoice", async () => {
+    const app = createApp(new MemoryDataStore());
+    const expense = await request(app).post("/api/project-expenses").set(headers("admin", "admin-1")).send({ projectId: "project-1", category: "Materials", description: "Concrete supplies", amount: 1250, spentOn: "2026-09-01" });
+    expect(expense.status).toBe(201);
+    const afterExpense = await request(app).get("/api/bootstrap").set(headers("admin", "admin-1"));
+    expect(afterExpense.body.projectExpenses.some((item: { id: string }) => item.id === expense.body.id)).toBe(true);
+
+    const invoice = await request(app).post("/api/projects/project-1/invoice-log").set(headers("admin", "admin-1")).send({ invoiceNumber: "PROJECT-DELETE-1", invoiceDate: "2026-09-01", amount: 800, description: "Supplier invoice" });
+    expect(invoice.status).toBe(201);
+    expect((await request(app).delete(`/api/projects/project-1/invoice-log/${invoice.body.id}`).set(headers("admin", "admin-1"))).status).toBe(200);
+    const afterDelete = await request(app).get("/api/bootstrap").set(headers("admin", "admin-1"));
+    expect(afterDelete.body.projectInvoiceLogs.some((item: { id: string }) => item.id === invoice.body.id)).toBe(false);
+  });
 });

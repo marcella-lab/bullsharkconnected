@@ -4,6 +4,7 @@ import {
   AdminAudit,
   AdminContracts,
   AdminInterests,
+  AdminPotentialJobs,
   AdminOverview,
   AdminProjects,
   AdminSchedule,
@@ -11,9 +12,11 @@ import {
 } from "./AdminPages";
 import { api, clearSessionToken, setPreview, setSessionToken } from "./api";
 import { Layout } from "./Layout";
-import { AdminPayRequests, AdminUsers, NotificationsPage, SubPayRequests } from "./OperationsPages";
+import { AdminInvoices, AdminPayRequests, AdminUsers, NotificationsPage, SubPayRequests } from "./OperationsPages";
 import { ClientPages, SubcontractorPages } from "./RolePages";
 import { YardagePage } from "./YardagePage";
+import { SpendingPage } from "./SpendingPage";
+import { JobDetail, ProjectDetail } from "./DetailPages";
 import type { BootstrapPayload, Role } from "./types";
 
 type Toast = { id: number; type: "success" | "error"; message: string };
@@ -27,6 +30,7 @@ export function App() {
   const [sessionRole, setSessionRole] = useState<Role | null>(null);
   const [mustChangePassword, setMustChangePassword] = useState(false);
   const [previewRole, setPreviewRole] = useState<Role | null>(null);
+  const [detail, setDetail] = useState<{ type: "project" | "job"; id: string } | null>(null);
 
   const notify = useCallback((type: Toast["type"], message: string) => {
     const toast = { id: Date.now(), type, message };
@@ -75,25 +79,30 @@ export function App() {
 
   let page;
   if (role === "admin" || role === "project_manager") {
-    if (view === "projects") page = <AdminProjects data={data} mutate={mutate} />;
+    if (detail?.type === "project") { const project = data.projects.find((item) => item.id === detail.id); page = project ? <ProjectDetail data={data} role={role} project={project} onBack={() => setDetail(null)} onJob={(job) => setDetail({ type: "job", id: job.id })} /> : <AdminOverview data={data} onView={setView} />; }
+    else if (detail?.type === "job") { const job = data.jobs.find((item) => item.id === detail.id); page = job ? <JobDetail data={data} role={role} job={job} onBack={() => setDetail({ type: "project", id: job.projectId })} /> : <AdminOverview data={data} onView={setView} />; }
+    else if (view === "projects") page = <AdminProjects data={data} mutate={mutate} onOpenProject={(project) => setDetail({ type: "project", id: project.id })} />;
     else if (view === "yardage") page = <YardagePage data={data} mutate={mutate} />;
+    else if (view === "spending" && role === "admin") page = <SpendingPage data={data} mutate={mutate} />;
     else if (view === "schedule") page = <AdminSchedule data={data} mutate={mutate} />;
     else if (view === "contracts") page = <AdminContracts data={data} mutate={mutate} />;
     else if (view === "interests") page = <AdminInterests data={data} />;
-    else if (view === "potential") page = <AdminInterests data={data} />;
+    else if (view === "potential") page = <AdminPotentialJobs data={data} mutate={mutate} />;
     else if (view === "users") page = <AdminUsers data={data} mutate={mutate} />;
-    else if (view === "pay-requests") page = <AdminPayRequests data={data} mutate={mutate} />;
+    else if (view === "pay-requests") page = <AdminInvoices data={data} mutate={mutate} />;
     else if (view === "notifications") page = <NotificationsPage data={data} mutate={mutate} />;
     else if (view === "settings") page = <AdminSettings data={data} mutate={mutate} />;
     else if (view === "audit") page = <AdminAudit data={data} />;
     else page = <AdminOverview data={data} onView={setView} />;
   } else if (role === "client") page = view === "notifications" ? <NotificationsPage data={data} mutate={mutate} /> : <ClientPages data={data} view={view} />;
-  else page = view === "pay-requests" ? <SubPayRequests data={data} mutate={mutate} /> : view === "notifications" ? <NotificationsPage data={data} mutate={mutate} /> : <SubcontractorPages data={data} view={view} mutate={mutate} />;
+  else if (detail?.type === "project") { const project = data.projects.find((item) => item.id === detail.id); page = project ? <ProjectDetail data={data} role={role} project={project} onBack={() => setDetail(null)} onJob={(job) => setDetail({ type: "job", id: job.id })} /> : <SubcontractorPages data={data} view="overview" mutate={mutate} />; }
+  else if (detail?.type === "job") { const job = data.jobs.find((item) => item.id === detail.id); page = job ? <JobDetail data={data} role={role} job={job} onBack={() => setDetail({ type: "project", id: job.projectId })} /> : <SubcontractorPages data={data} view="overview" mutate={mutate} />; }
+  else page = view === "pay-requests" ? <SubPayRequests data={data} mutate={mutate} /> : view === "notifications" ? <NotificationsPage data={data} mutate={mutate} /> : <SubcontractorPages data={data} view={view} mutate={mutate} onOpenProject={(project) => setDetail({ type: "project", id: project.id })} onOpenJob={(job) => setDetail({ type: "job", id: job.id })} />;
 
   if (mustChangePassword) return <PasswordScreen role={role} onDone={() => { setMustChangePassword(false); void refresh(role); }} />;
 
   return (
-    <Layout role={role} viewerName={data.viewer.name} view={view} onViewChange={setView} onRoleChange={changeRole} onSignOut={() => { clearSessionToken(); setPreview(null); setSessionRole(null); setData(null); }}>
+    <Layout role={role} viewerName={data.viewer.name} view={view} onViewChange={(nextView) => { setDetail(null); setView(nextView); }} onRoleChange={changeRole} onSignOut={() => { clearSessionToken(); setPreview(null); setSessionRole(null); setData(null); }}>
       {sessionRole === "admin" && <section className="preview-bar"><strong>{previewRole ? `ADMIN PREVIEW MODE — Viewing as ${previewRole}` : "Administrator controls"}</strong><label>View as <select value={previewRole || "admin"} onChange={(event) => changeRole(event.target.value as Role)}><option value="admin">Admin</option><option value="client">Client</option><option value="subcontractor">Subcontractor</option></select></label>{previewRole && <button className="button button-small" onClick={() => changeRole("admin")}>Exit preview</button>}</section>}
       {role === "project_manager" && <section className="read-only-banner"><strong>PROJECT MANAGER — READ-ONLY ACCESS</strong><span>You can view all operational information, but cannot make changes.</span></section>}
       <div className={role === "project_manager" ? "read-only-view" : ""}>{page}</div>
