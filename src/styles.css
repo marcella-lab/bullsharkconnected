@@ -847,5 +847,9 @@ html, body, #root { width: 100%; max-width: 100%; min-height: 100%; background: 
 .detail-photo-card .detail-photo-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); min-height: 0; max-height: 380px; overflow-y: auto; padding: 12px; }
 .detail-photo-card .detail-photo-button span { max-width: 100%; }
 @media (max-width: 900px) { .project-detail-square-grid { grid-template-columns: 1fr; } }
+.project-photo-gallery-bottom { width: 100%; margin-top: 20px; max-height: none; }
+.project-photo-gallery-bottom .detail-photo-strip { grid-template-columns: repeat(auto-fill, minmax(175px, 1fr)); max-height: none; overflow: visible; gap: 7px; padding: 12px; }
+.project-photo-gallery-bottom .detail-photo-button { gap: 3px; }
+.project-notes-media-grid { grid-template-columns: minmax(0, 1.25fr) minmax(300px, .85fr); }
 /* Menus are rendered above cards, so card content never needs to spill out. */
 .action-menu-portal { position: fixed !important; right: auto !important; z-index: 3000 !important; }
