@@ -35,6 +35,7 @@ const openAuthenticatedBlob = async (path: string, role: Role) => {
 async function request<T>(path: string, role: Role, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
     ...init,
+    cache: "no-store",
     headers: {
       "Content-Type": "application/json",
       ...(authToken ? { Authorization: `Bearer ${authToken}` } : { "x-user-role": role, "x-user-id": viewerIds[role] }),

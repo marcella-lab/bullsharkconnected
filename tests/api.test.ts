@@ -193,4 +193,14 @@ describe("BullShark portal API", () => {
     const afterDelete = await request(app).get("/api/bootstrap").set(headers("admin", "admin-1"));
     expect(afterDelete.body.projectInvoiceLogs.some((item: { id: string }) => item.id === invoice.body.id)).toBe(false);
   });
+
+  it("persists edited client information and serves fresh portal data", async () => {
+    const app = createApp(new MemoryDataStore());
+    const updated = await request(app).patch("/api/projects/project-1/client-contact").set(headers("admin", "admin-1")).send({ name: "Updated Tanner Family", email: "updated.tanner@example.com", phone: "555-555-0100", contractCost: 345000 });
+    expect(updated.status).toBe(200);
+    const bootstrap = await request(app).get("/api/bootstrap").set(headers("admin", "admin-1"));
+    expect(bootstrap.headers["cache-control"]).toContain("no-store");
+    expect(bootstrap.body.projects.find((item: { id: string }) => item.id === "project-1").clientName).toBe("Updated Tanner Family");
+    expect(bootstrap.body.clients.find((item: { id: string }) => item.id === "client-1").email).toBe("updated.tanner@example.com");
+  });
 });

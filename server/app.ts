@@ -152,6 +152,9 @@ export function createApp(store: DataStore, esign: EsignService = new Configured
   const attempts = new Map<string, { count: number; resetAt: number }>();
   app.use(cors({ origin: process.env.APP_URL || "http://localhost:5173" }));
   app.use(express.json({ limit: "20mb" }));
+  // Portal records are edited frequently. Never let a browser or proxy replay
+  // an older bootstrap response after a successful save.
+  app.use("/api", (_req, res, next) => { res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0"); next(); });
   app.use(asyncRoute(async (req, res, next) => {
     // The React application and its static assets must remain publicly readable;
     // authentication is enforced on every API route below.
