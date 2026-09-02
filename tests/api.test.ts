@@ -157,7 +157,7 @@ describe("BullShark portal API", () => {
   it("separates file access between client and assigned subcontractor audiences", async () => {
     const app = createApp(new MemoryDataStore());
     const clientOnly = await request(app).post("/api/files").set(headers("admin", "admin-1")).send({ projectId: "project-1", jobIds: ["job-1"], name: "Client only.txt", mimeType: "text/plain", contentBase64: Buffer.from("client").toString("base64"), category: "Other", description: "", visibility: "client" });
-    const subcontractorOnly = await request(app).post("/api/files").set(headers("admin", "admin-1")).send({ projectId: "project-1", jobIds: ["job-1"], name: "Subcontractor only.txt", mimeType: "text/plain", contentBase64: Buffer.from("subcontractor").toString("base64"), category: "Other", description: "", visibility: "assigned_subcontractor" });
+    const subcontractorOnly = await request(app).post("/api/files").set(headers("admin", "admin-1")).send({ projectId: "project-1", jobIds: [], name: "Subcontractor only.txt", mimeType: "text/plain", contentBase64: Buffer.from("subcontractor").toString("base64"), category: "Other", description: "", visibility: "assigned_subcontractor" });
 
     const clientData = await request(app).get("/api/bootstrap").set(headers("client", "client-1"));
     const subcontractorData = await request(app).get("/api/bootstrap").set(headers("subcontractor", "contractor-1"));

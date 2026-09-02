@@ -136,7 +136,7 @@ const filteredData = (data: PortalData, role: Role, viewerId: string): PortalDat
     interests: data.interests.filter((interest) => interest.contractorId === viewerId),
     audit: [],
     users: data.users?.filter((user) => user.id === viewerId).map(({ passwordHash, ...user }) => ({ ...user, passwordHash: "" })),
-    files: data.files?.filter((file) => potentialFileIds.has(file.id) || (projectIds.has(file.projectId) && fileAudienceIncludes(file.visibility, "subcontractor") && (file.visibility === "project_access" || file.jobIds.some((jobId) => assigned.some((job) => job.id === jobId))))),
+    files: data.files?.filter((file) => potentialFileIds.has(file.id) || (projectIds.has(file.projectId) && fileAudienceIncludes(file.visibility, "subcontractor") && (file.visibility === "project_access" || file.jobIds.length === 0 || file.jobIds.some((jobId) => assigned.some((job) => job.id === jobId))))),
     payRequests: data.payRequests?.filter((item) => item.subcontractorId === viewerId), clientInvoices: [], projectInvoiceLogs: (data.projectInvoiceLogs || []).filter((item) => projectIds.has(item.projectId)), projectExpenses: [],
     potentialJobs: visiblePotentialJobs,
     bids: data.bids?.filter((item) => item.contractorId === viewerId),
@@ -306,7 +306,7 @@ export function createApp(store: DataStore, esign: EsignService = new Configured
   app.delete("/api/files/:fileId", asyncRoute(async (req, res) => { let removedPath = ""; await store.update((data) => { const index = data.files!.findIndex((entry) => entry.id === String(req.params.fileId)); if (index < 0) throw Object.assign(new Error("File not found."), { status: 404 }); const file = data.files![index]; if (!canManageFile(data, file, req.viewer)) throw Object.assign(new Error("You can only delete files you uploaded in work assigned to you."), { status: 403 }); data.files!.splice(index, 1); removedPath = file.path; audit(data, "File deleted", `${file.name} was permanently deleted.`, req.viewer.role); }); if (removedPath) await unlink(removedPath).catch(() => undefined); res.json({ ok: true }); }));
   const canViewStoredFile = (data: PortalData, file: NonNullable<PortalData["files"]>[number] | undefined, user: PortalUser | undefined) => {
     if (!file || !user || !canProject(data, user, file.projectId) || !fileAudienceIncludes(file.visibility, user.role)) return false;
-    if (user.role !== "subcontractor" || file.visibility === "project_access") return true;
+    if (user.role !== "subcontractor" || file.visibility === "project_access" || file.jobIds.length === 0) return true;
     return file.jobIds.some((jobId) => user.jobIds.includes(jobId));
   };
   app.get("/api/files/:fileId/download", asyncRoute(async (req, res) => { const data = await store.read(); const file = data.files!.find((item) => item.id === req.params.fileId); const user = userById(data, req.viewer.id); const potentialAccess = file && canAccessPotentialFile(data, user, file.id); if (!potentialAccess && !canViewStoredFile(data, file, user)) return res.status(403).json({ message: "You do not have access to this file." }); res.download(file!.path, file!.name); }));

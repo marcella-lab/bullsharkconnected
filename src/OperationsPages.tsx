@@ -936,19 +936,10 @@ export function ProjectFilesModal({
   useEffect(() => {
     setFiles((data.files || []).filter((file) => file.projectId === project.id && (!blueprintMode || file.category === "Plans")));
   }, [blueprintMode, data.files, project.id]);
-  const projectSubcontractors = data.contractors.filter((contractor) =>
-    data.jobs.some(
-      (job) => job.projectId === project.id && job.contractorId === contractor.id,
-    ),
-  );
   const beginEdit = (file: PortalFile) => {
     setEditing(file);
     setEditAudience(
-      file.visibility === "assigned_subcontractor"
-        ? "assigned_subcontractor"
-        : file.visibility === "admin"
-          ? "admin"
-          : "client",
+      file.visibility,
     );
   };
   const useLocation = () =>
@@ -1017,9 +1008,6 @@ export function ProjectFilesModal({
     setBusy(true);
     setUploadError("");
     try {
-      const selectedSubcontractors = form
-        .getAll("subcontractorIds")
-        .map(String);
       const jobIds = role === "subcontractor"
           ? data.jobs
               .filter(
@@ -1028,21 +1016,7 @@ export function ProjectFilesModal({
                   job.contractorId === data.viewer.id,
               )
               .map((job) => job.id)
-          : role === "admin" && uploadAudience === "assigned_subcontractor"
-            ? data.jobs
-                .filter(
-                  (job) =>
-                    job.projectId === project.id &&
-                    Boolean(job.contractorId) &&
-                    selectedSubcontractors.includes(job.contractorId!),
-                )
-                .map((job) => job.id)
-            : [];
-      if (role === "admin" && uploadAudience === "assigned_subcontractor" && !jobIds.length) {
-        setUploadError("Select at least one subcontractor user assigned to this project.");
-        setBusy(false);
-        return;
-      }
+          : [];
       const saved = await Promise.all(
         selected.map(async (file) =>
           api.mutate<(typeof files)[number]>("/api/files", role, "POST", {
@@ -1099,10 +1073,6 @@ export function ProjectFilesModal({
     event.preventDefault();
     if (!editing) return;
     const form = new FormData(event.currentTarget);
-    if (role === "admin" && editAudience === "assigned_subcontractor" && !form.getAll("editSubcontractorIds").length) {
-      setUploadError("Select at least one subcontractor user assigned to this project.");
-      return;
-    }
     setBusy(true);
     setUploadError("");
     try {
@@ -1110,9 +1080,7 @@ export function ProjectFilesModal({
         name: form.get("name"), description: form.get("description"), category: form.get("category"),
         ...(role === "admin" ? {
           visibility: form.get("visibility"),
-          jobIds: editAudience === "assigned_subcontractor"
-            ? data.jobs.filter((job) => job.projectId === project.id && form.getAll("editSubcontractorIds").map(String).includes(job.contractorId || "")).map((job) => job.id)
-            : [],
+          jobIds: [],
         } : {}),
       });
       setFiles((current) => current.map((file) => file.id === updated.id ? updated : file));
@@ -1161,36 +1129,22 @@ export function ProjectFilesModal({
               defaultValue={new Date().toISOString().slice(0, 10)}
             />
           </Field>
-          <Field label="Assigned to">
+          <Field label="Visible to">
             <select name="visibility" value={uploadAudience} onChange={(event) => setUploadAudience(event.target.value as FileVisibility)}>
               {role === "admin" ? (
                 <>
-                  <option value="assigned_subcontractor">
-                    Subcontractor users
-                  </option>
-                  <option value="client">Client</option>
-                  <option value="admin">Admin</option>
+                  <option value="admin">Admin only</option>
+                  <option value="client">Admin + Client</option>
+                  <option value="assigned_subcontractor">Admin + Subcontractor</option>
+                  <option value="client_and_assigned_subcontractor">Admin + Client + Subcontractor</option>
                 </>
               ) : role === "client" ? (
                 <option value="client">Client</option>
               ) : (
-                <option value="assigned_subcontractor">Subcontractor users</option>
+                <option value="assigned_subcontractor">Subcontractor</option>
               )}
             </select>
           </Field>
-          {role === "admin" && uploadAudience === "assigned_subcontractor" && (
-            <Field label="Subcontractor users">
-              <div className="file-assignee-list">
-                {projectSubcontractors.map((contractor) => (
-                  <label className="check-field" key={contractor.id}>
-                    <input type="checkbox" name="subcontractorIds" value={contractor.id} />
-                    <span><strong>{contractor.name}</strong><small>{contractor.company}</small></span>
-                  </label>
-                ))}
-                {!projectSubcontractors.length && <small>No subcontractors are assigned to this project's jobs yet.</small>}
-              </div>
-            </Field>
-          )}
           <Field label="Description">
             <input
               name="description"
@@ -1276,8 +1230,7 @@ export function ProjectFilesModal({
         <Field label="File name"><input name="name" required defaultValue={editing.name}/></Field>
         <Field label="Category"><input name="category" defaultValue={editing.category || ""}/></Field>
         <Field label="Description"><input name="description" defaultValue={editing.description || ""}/></Field>
-        {role === "admin" && <Field label="Assigned to"><select name="visibility" value={editAudience} onChange={(event) => setEditAudience(event.target.value as FileVisibility)}><option value="assigned_subcontractor">Subcontractor users</option><option value="client">Client</option><option value="admin">Admin</option></select></Field>}
-        {role === "admin" && editAudience === "assigned_subcontractor" && <Field label="Subcontractor users"><div className="file-assignee-list">{projectSubcontractors.map((contractor) => { const contractorJobIds = data.jobs.filter((job) => job.projectId === project.id && job.contractorId === contractor.id).map((job) => job.id); return <label className="check-field" key={contractor.id}><input type="checkbox" name="editSubcontractorIds" value={contractor.id} defaultChecked={contractorJobIds.some((jobId) => editing.jobIds.includes(jobId))}/><span><strong>{contractor.name}</strong><small>{contractor.company}</small></span></label>; })}</div></Field>}
+        {role === "admin" && <Field label="Visible to"><select name="visibility" value={editAudience} onChange={(event) => setEditAudience(event.target.value as FileVisibility)}><option value="admin">Admin only</option><option value="client">Admin + Client</option><option value="assigned_subcontractor">Admin + Subcontractor</option><option value="client_and_assigned_subcontractor">Admin + Client + Subcontractor</option></select></Field>}
         <div className="form-actions"><button className="button button-ghost" type="button" onClick={() => setEditing(null)}>Cancel</button><SubmitButton busy={busy}>Save changes</SubmitButton></div>
       </form>}
       {preview && (
