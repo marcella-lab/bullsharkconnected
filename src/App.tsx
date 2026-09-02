@@ -1,5 +1,5 @@
 import { AlertCircle, CheckCircle2, LoaderCircle, LockKeyhole, X } from "lucide-react";
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import {
   AdminAudit,
   AdminContracts,
@@ -31,6 +31,10 @@ export function App() {
   const [mustChangePassword, setMustChangePassword] = useState(false);
   const [previewRole, setPreviewRole] = useState<Role | null>(null);
   const [detail, setDetail] = useState<{ type: "project" | "job"; id: string } | null>(null);
+  // Several events can request a refresh at once (a save, focus, and the
+  // live-update timer).  Only let the newest response change shared state;
+  // otherwise an older response can make a just-saved card look reverted.
+  const latestRefresh = useRef(0);
 
   const notify = useCallback((type: Toast["type"], message: string) => {
     const toast = { id: Date.now(), type, message };
@@ -39,11 +43,14 @@ export function App() {
   }, []);
 
   const refresh = useCallback(async (activeRole: Role) => {
+    const refreshId = ++latestRefresh.current;
     try {
       const next = await api.bootstrap(activeRole);
+      if (refreshId !== latestRefresh.current) return;
       setData(next);
       setError("");
     } catch (requestError) {
+      if (refreshId !== latestRefresh.current) return;
       setError(requestError instanceof Error ? requestError.message : "Unable to load the portal.");
     }
   }, []);
