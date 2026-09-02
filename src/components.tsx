@@ -27,9 +27,10 @@ export function ProgressBar({ value }: { value: number }) {
 export function WorkStatusStrip({ jobs }: { jobs: Job[] }) {
   const statuses = [
     { label: "New", value: jobs.filter((job) => job.status === "planned").length, tone: "new" },
-    { label: "Lost", value: jobs.filter((job) => job.status === "blocked").length, tone: "lost" },
+    { label: "Lost", value: jobs.filter((job) => job.status === "blocked" || job.status === "on_hold").length, tone: "lost" },
     { label: "Scheduled", value: jobs.filter((job) => job.status === "scheduled").length, tone: "scheduled" },
     { label: "In progress", value: jobs.filter((job) => job.status === "in_progress").length, tone: "progress" },
+    { label: "Completed", value: jobs.filter((job) => job.status === "complete").length, tone: "complete" },
   ];
   return (
     <section className="work-status-strip" aria-label="Job status overview">

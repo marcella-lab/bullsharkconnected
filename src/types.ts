@@ -1,6 +1,7 @@
 export type Role = "admin" | "project_manager" | "client" | "subcontractor";
 
-export type JobStatus = "planned" | "scheduled" | "in_progress" | "blocked" | "complete";
+export type JobStatus = "planned" | "scheduled" | "in_progress" | "blocked" | "on_hold" | "complete";
+export type ProjectWorkStatus = "new" | "lost" | "scheduled" | "in_progress" | "completed";
 export type ProjectStatus = "active" | "on_hold" | "complete";
 export interface ProjectMilestone {
   id: string;
@@ -68,6 +69,7 @@ export interface Project {
   startDate: string;
   targetDate: string;
   status: ProjectStatus;
+  workStatus?: ProjectWorkStatus;
   fieldNotes?: string;
   milestones?: ProjectMilestone[];
 }

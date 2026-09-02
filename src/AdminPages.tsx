@@ -57,6 +57,8 @@ const toneForStatus = (status: string) =>
           ? "orange"
       : "neutral";
 const tradePhases = (job: Job): Array<[string, number]> => { const source=`${job.title} ${job.scope}`.toLowerCase(); if(source.includes("concrete")) return [["Scheduled",0],["Pad Prep",25],["Ready for Pour / Inspection",50],["Pour Day",75],["Complete",100]]; if(source.includes("plumb")) return [["Scheduled",0],["Underground",20],["Rough-In",40],["Top-Out",60],["Fixtures / Trim-Out",85],["Final Inspection",95],["Complete",100]]; if(source.includes("electric")) return [["Scheduled",0],["Layout",10],["Rough-In",35],["Panel / Service",55],["Devices / Fixtures",80],["Final Inspection",95],["Complete",100]]; return [["Scheduled",0],["In Progress",50],["Complete",100]]; };
+const projectWorkStatus = (project: Project, jobs: Job[]) => project.workStatus || (project.status === "complete" ? "completed" : project.status === "on_hold" ? "lost" : jobs.some((job) => job.status === "in_progress") ? "in_progress" : jobs.some((job) => job.status === "scheduled") ? "scheduled" : "new");
+const projectWorkStatusLabel = (status: ReturnType<typeof projectWorkStatus>) => status === "in_progress" ? "In progress" : status[0].toUpperCase() + status.slice(1);
 
 export function AdminOverview({
   data,
@@ -276,6 +278,7 @@ export function AdminProjects({
       <div className="project-stack">
         {visibleProjects.map((project) => {
           const jobs = data.jobs.filter((job) => job.projectId === project.id);
+          const workStatus = projectWorkStatus(project, jobs);
           return (
             <section className={`project-card ${project.status === "complete" ? "project-complete" : ""}`} key={project.id}>
               <header>
@@ -287,6 +290,7 @@ export function AdminProjects({
                   </p>
                 </div>
                 <div className="project-summary">
+                  <div><small>Status</small><span className={`project-work-status project-work-${workStatus}`}>{projectWorkStatusLabel(workStatus)}</span></div>
                   <div>
                     <small>Stage</small>
                     <strong>{project.currentStage}</strong>
@@ -296,7 +300,7 @@ export function AdminProjects({
                     <strong>{project.progress}%</strong>
                   </div>
                 </div>
-                {canCreate && <ActionMenu className="project-menu" label="Project actions" items={[{ label: "Add job", onSelect: () => setDialog({ type: "job", project }) }, { label: "Edit project", onSelect: () => onOpenProject?.(project) }, { label: "Update progress / phase", onSelect: () => { const stage = window.prompt("Project stage", project.currentStage); if (!stage?.trim()) return; const progress = window.prompt("Project progress (0–100)", String(project.progress)); if (progress === null || Number.isNaN(Number(progress))) return; void submit(() => mutate(`/api/projects/${project.id}/progress`, "PATCH", { stage: stage.trim(), progress: Number(progress), override: true })); } }, { label: project.status === "complete" ? "Reopen project" : "Mark project complete", onSelect: () => void submit(() => mutate(`/api/projects/${project.id}/complete`, "PATCH", { complete: project.status !== "complete" })) }, { label: "Delete project", destructive: true, dividerBefore: true, onSelect: () => { if (window.confirm(`Delete ${project.name} and all of its jobs? This cannot be undone.`)) void submit(() => mutate(`/api/projects/${project.id}`, "DELETE")); } }]} />}
+                {canCreate && <ActionMenu className="project-menu" label="Project actions" items={[{ label: "Add job", onSelect: () => setDialog({ type: "job", project }) }, { label: "Edit project", onSelect: () => onOpenProject?.(project) }, { label: "Set status: New", onSelect: () => void submit(() => mutate(`/api/projects/${project.id}/work-status`, "PATCH", { status: "new" })) }, { label: "Set status: Lost", onSelect: () => void submit(() => mutate(`/api/projects/${project.id}/work-status`, "PATCH", { status: "lost" })) }, { label: "Set status: Scheduled", onSelect: () => void submit(() => mutate(`/api/projects/${project.id}/work-status`, "PATCH", { status: "scheduled" })) }, { label: "Set status: In progress", onSelect: () => void submit(() => mutate(`/api/projects/${project.id}/work-status`, "PATCH", { status: "in_progress" })) }, { label: "Set status: Completed", onSelect: () => void submit(() => mutate(`/api/projects/${project.id}/work-status`, "PATCH", { status: "completed" })) }, { label: "Update progress / phase", onSelect: () => { const stage = window.prompt("Project stage", project.currentStage); if (!stage?.trim()) return; const progress = window.prompt("Project progress (0–100)", String(project.progress)); if (progress === null || Number.isNaN(Number(progress))) return; void submit(() => mutate(`/api/projects/${project.id}/progress`, "PATCH", { stage: stage.trim(), progress: Number(progress), override: true })); } }, { label: project.status === "complete" ? "Reopen project" : "Mark project complete", onSelect: () => void submit(() => mutate(`/api/projects/${project.id}/complete`, "PATCH", { complete: project.status !== "complete" })) }, { label: "Delete project", destructive: true, dividerBefore: true, onSelect: () => { if (window.confirm(`Delete ${project.name} and all of its jobs? This cannot be undone.`)) void submit(() => mutate(`/api/projects/${project.id}`, "DELETE")); } }]} />}
               </header>
             </section>
           );
