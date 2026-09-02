@@ -52,8 +52,13 @@ export const api = {
   changePassword: (password: string, role: Role) => request<{ ok: boolean }>("/api/auth/change-password", role, { method: "POST", body: JSON.stringify({ password }) }),
   bootstrap: (role: Role) => request<BootstrapPayload>("/api/bootstrap", role),
   get: <T,>(path: string, role: Role) => request<T>(path, role),
-  mutate: <T>(path: string, role: Role, method: "POST" | "PATCH" | "DELETE", data?: unknown) =>
-    request<T>(path, role, { method, body: data === undefined ? undefined : JSON.stringify(data) }),
+  mutate: async <T,>(path: string, role: Role, method: "POST" | "PATCH" | "DELETE", data?: unknown) => {
+    const result = await request<T>(path, role, { method, body: data === undefined ? undefined : JSON.stringify(data) });
+    // Some detail cards call the API directly instead of the app-level mutation
+    // helper. Notify the app so every successful write reloads the shared data.
+    window.dispatchEvent(new Event("bullshark:data-saved"));
+    return result;
+  },
   downloadContract: async (contractId: string, contractNumber: string, role: Role) => {
     const response = await fetch(`/api/contracts/${contractId}/pdf`, {
       headers: authToken ? { Authorization: `Bearer ${authToken}` } : { "x-user-role": role, "x-user-id": viewerIds[role] },
@@ -80,5 +85,6 @@ export const api = {
     return URL.createObjectURL(await response.blob());
   },
   openFile: (fileId: string, role: Role) => openAuthenticatedBlob(`/api/files/${fileId}/preview`, role),
+  openContract: (contractId: string, role: Role) => openAuthenticatedBlob(`/api/contracts/${contractId}/pdf`, role),
   openPayRequestFile: (payId: string, fileId: string, role: Role) => openAuthenticatedBlob(`/api/pay-requests/${payId}/files/${fileId}/preview`, role),
 };

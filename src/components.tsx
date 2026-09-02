@@ -1,7 +1,7 @@
 import { Check, Download, Eye, MoreVertical, Pencil, Plus, RotateCcw, Trash2, X } from "lucide-react";
 import { useEffect, useRef, useState, type PropsWithChildren, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import type { Project, YardageRow } from "./types";
+import type { Job, Project, YardageRow } from "./types";
 
 export const currency = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
 export const dateLabel = (value?: string) => {
@@ -19,6 +19,28 @@ export function ProgressBar({ value }: { value: number }) {
     <div className="progress-track" aria-label={`${value}% complete`}>
       <span style={{ width: `${Math.min(100, Math.max(0, value))}%` }} />
     </div>
+  );
+}
+
+/** A shared, role-safe summary. The jobs supplied to it are already limited to
+ * what the signed-in person is allowed to see. */
+export function WorkStatusStrip({ jobs }: { jobs: Job[] }) {
+  const statuses = [
+    { label: "New", value: jobs.filter((job) => job.status === "planned").length, tone: "new" },
+    { label: "Lost", value: jobs.filter((job) => job.status === "blocked").length, tone: "lost" },
+    { label: "Scheduled", value: jobs.filter((job) => job.status === "scheduled").length, tone: "scheduled" },
+    { label: "In progress", value: jobs.filter((job) => job.status === "in_progress").length, tone: "progress" },
+  ];
+  return (
+    <section className="work-status-strip" aria-label="Job status overview">
+      {statuses.map((status) => (
+        <article className={`work-status-card work-status-${status.tone}`} key={status.label}>
+          <span>{status.label}</span>
+          <strong>{status.value}</strong>
+          <small>jobs</small>
+        </article>
+      ))}
+    </section>
   );
 }
 

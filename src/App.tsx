@@ -49,6 +49,22 @@ export function App() {
   }, []);
 
   useEffect(() => { if (sessionRole) { setData(null); void refresh(role); } }, [role, refresh, sessionRole]);
+  useEffect(() => {
+    if (!sessionRole) return;
+    const reloadSavedData = () => void refresh(role);
+    window.addEventListener("bullshark:data-saved", reloadSavedData);
+    return () => window.removeEventListener("bullshark:data-saved", reloadSavedData);
+  }, [refresh, role, sessionRole]);
+  // Keep records current for everyone who already has the portal open. This
+  // makes edits made by another user appear without using Back or Refresh.
+  useEffect(() => {
+    if (!sessionRole) return;
+    const refreshWhenVisible = () => { if (document.visibilityState === "visible") void refresh(role); };
+    const interval = window.setInterval(refreshWhenVisible, 15_000);
+    window.addEventListener("focus", refreshWhenVisible);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    return () => { window.clearInterval(interval); window.removeEventListener("focus", refreshWhenVisible); document.removeEventListener("visibilitychange", refreshWhenVisible); };
+  }, [refresh, role, sessionRole]);
 
   const mutate = useCallback(async <T,>(path: string, method: "POST" | "PATCH" | "DELETE", body?: unknown) => {
     try {
@@ -79,8 +95,8 @@ export function App() {
 
   let page;
   if (role === "admin" || role === "project_manager") {
-    if (detail?.type === "project") { const project = data.projects.find((item) => item.id === detail.id); page = project ? <ProjectDetail data={data} role={role} project={project} onBack={() => setDetail(null)} onJob={(job) => setDetail({ type: "job", id: job.id })} /> : <AdminOverview data={data} onView={setView} />; }
-    else if (detail?.type === "job") { const job = data.jobs.find((item) => item.id === detail.id); page = job ? <JobDetail data={data} role={role} job={job} onBack={() => setDetail({ type: "project", id: job.projectId })} /> : <AdminOverview data={data} onView={setView} />; }
+    if (detail?.type === "project") { const project = data.projects.find((item) => item.id === detail.id); page = project ? <ProjectDetail data={data} role={role} project={project} onBack={() => setDetail(null)} onJob={(job) => setDetail({ type: "job", id: job.id })} /> : <AdminOverview data={data} onView={setView} onOpenJob={(job) => setDetail({ type: "job", id: job.id })} />; }
+    else if (detail?.type === "job") { const job = data.jobs.find((item) => item.id === detail.id); page = job ? <JobDetail data={data} role={role} job={job} onBack={() => setDetail({ type: "project", id: job.projectId })} onUpdated={() => void refresh(role)} /> : <AdminOverview data={data} onView={setView} onOpenJob={(job) => setDetail({ type: "job", id: job.id })} />; }
     else if (view === "projects") page = <AdminProjects data={data} mutate={mutate} onOpenProject={(project) => setDetail({ type: "project", id: project.id })} />;
     else if (view === "yardage") page = <YardagePage data={data} mutate={mutate} />;
     else if (view === "spending" && role === "admin") page = <SpendingPage data={data} mutate={mutate} />;
@@ -93,10 +109,10 @@ export function App() {
     else if (view === "notifications") page = <NotificationsPage data={data} mutate={mutate} />;
     else if (view === "settings") page = <AdminSettings data={data} mutate={mutate} />;
     else if (view === "audit") page = <AdminAudit data={data} />;
-    else page = <AdminOverview data={data} onView={setView} />;
+    else page = <AdminOverview data={data} onView={setView} onOpenJob={(job) => setDetail({ type: "job", id: job.id })} />;
   } else if (role === "client") page = view === "notifications" ? <NotificationsPage data={data} mutate={mutate} /> : <ClientPages data={data} view={view} />;
   else if (detail?.type === "project") { const project = data.projects.find((item) => item.id === detail.id); page = project ? <ProjectDetail data={data} role={role} project={project} onBack={() => setDetail(null)} onJob={(job) => setDetail({ type: "job", id: job.id })} /> : <SubcontractorPages data={data} view="overview" mutate={mutate} />; }
-  else if (detail?.type === "job") { const job = data.jobs.find((item) => item.id === detail.id); page = job ? <JobDetail data={data} role={role} job={job} onBack={() => setDetail({ type: "project", id: job.projectId })} /> : <SubcontractorPages data={data} view="overview" mutate={mutate} />; }
+  else if (detail?.type === "job") { const job = data.jobs.find((item) => item.id === detail.id); page = job ? <JobDetail data={data} role={role} job={job} onBack={() => setDetail({ type: "project", id: job.projectId })} onUpdated={() => void refresh(role)} /> : <SubcontractorPages data={data} view="overview" mutate={mutate} />; }
   else page = view === "pay-requests" ? <SubPayRequests data={data} mutate={mutate} /> : view === "notifications" ? <NotificationsPage data={data} mutate={mutate} /> : <SubcontractorPages data={data} view={view} mutate={mutate} onOpenProject={(project) => setDetail({ type: "project", id: project.id })} onOpenJob={(job) => setDetail({ type: "job", id: job.id })} />;
 
   if (mustChangePassword) return <PasswordScreen role={role} onDone={() => { setMustChangePassword(false); void refresh(role); }} />;

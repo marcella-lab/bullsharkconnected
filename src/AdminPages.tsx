@@ -29,6 +29,7 @@ import {
   ProgressBar,
   StatusPill,
   SubmitButton,
+  WorkStatusStrip,
   YardageReferenceSheet,
 } from "./components";
 import type {
@@ -60,9 +61,11 @@ const tradePhases = (job: Job): Array<[string, number]> => { const source=`${job
 export function AdminOverview({
   data,
   onView,
+  onOpenJob,
 }: {
   data: BootstrapPayload;
   onView: (view: string) => void;
+  onOpenJob?: (job: Job) => void;
 }) {
   const assigned = data.jobs.filter((job) => job.contractorId).length;
   const scheduled = data.jobs.filter((job) => job.scheduleStart).length;
@@ -91,6 +94,7 @@ export function AdminOverview({
           </button>
         }
       />
+      <WorkStatusStrip jobs={data.jobs} />
       <section className="metric-grid">
         <article className="metric-card">
           <span>Active projects</span>
@@ -161,8 +165,9 @@ export function AdminOverview({
             </div>
           </div>
           <div className="compact-list">
-            {upcoming.map((job) => (
-              <article key={job.id}>
+            {upcoming.map((job) => {
+              const project = data.projects.find((item) => item.id === job.projectId);
+              return <button className="next-on-site-job" type="button" key={job.id} onClick={() => onOpenJob?.(job)}>
                 <span className="date-tile">
                   <b>
                     {dateLabel(job.scheduleStart)
@@ -173,10 +178,11 @@ export function AdminOverview({
                 </span>
                 <span>
                   <strong>{job.title}</strong>
-                  <small>{job.contractorName || "Crew not assigned"}</small>
+                  <small>{project?.clientName || "No client assigned"}</small>
+                  <small>{project?.address || job.location || "Address not set"}</small>
                 </span>
-              </article>
-            ))}
+              </button>;
+            })}
           </div>
         </section>
       </div>
@@ -266,6 +272,7 @@ export function AdminProjects({
           </select>
         </label>
       </div>
+      <WorkStatusStrip jobs={data.jobs} />
       <div className="project-stack">
         {visibleProjects.map((project) => {
           const jobs = data.jobs.filter((job) => job.projectId === project.id);
@@ -399,11 +406,7 @@ export function AdminProjects({
               <input required name="title" placeholder="Structural framing" />
             </Field>
             <Field label="Assigned client">
-              <select
-                required
-                name="clientId"
-                defaultValue={dialog.project.clientId}
-              >
+              <select required name="clientId">
                 <option value="">Select client</option>
                 {assignableClients.map((client) => (
                   <option key={client.id} value={client.id}>
@@ -489,8 +492,8 @@ export function AdminProjects({
             onSubmit={(event) => {
               event.preventDefault();
               const form = new FormData(event.currentTarget);
-              void submit(() =>
-                mutate(`/api/jobs/${dialog.job.id}`, "PATCH", {
+              void submit(async () => {
+                await mutate(`/api/jobs/${dialog.job.id}`, "PATCH", {
                   title: form.get("title"),
                   scope: form.get("scope"),
                   location: form.get("location"),
@@ -498,8 +501,9 @@ export function AdminProjects({
                   stage: form.get("stage"),
                   clientId: form.get("clientId"),
                   contractorId: form.get("contractorId"),
-                }),
-              );
+                });
+                await mutate(`/api/jobs/${dialog.job.id}/access`, "PATCH", { userIds: form.getAll("accessUserIds").map(String) });
+              });
             }}
           >
             <Field label="Job name">
@@ -543,6 +547,11 @@ export function AdminProjects({
                   </option>
                 ))}
               </select>
+            </Field>
+            <Field label="Users with job access">
+              <div className="checkbox-list">
+                {(data.users || []).filter((user) => user.active && (user.role === "client" || user.role === "subcontractor")).map((user) => <label key={user.id}><input name="accessUserIds" type="checkbox" value={user.id} defaultChecked={user.jobIds.includes(dialog.job.id)} /> {user.name} · {user.role}</label>)}
+              </div>
             </Field>
             <Field label="Scope">
               <textarea
@@ -1073,14 +1082,10 @@ export function AdminContracts({
                   <button
                     className="button button-small"
                     onClick={() =>
-                      void api.downloadContract(
-                        contract.id,
-                        contract.contractNumber,
-                        "admin",
-                      )
+                      void api.openContract(contract.id, "admin")
                     }
                   >
-                    <Download size={15} /> Open & Download
+                    <Download size={15} /> Open contract
                   </button>
                   {contract.status !== "signed" && (
                     <button
@@ -1380,7 +1385,7 @@ export function AdminPotentialJobs({
                 <small>
                   {job.trade} · {job.fileIds.length} attachment(s)
                 </small>
-                {job.fileIds.length > 0 && <div className="file-chip-list">{job.fileIds.map((fileId) => { const file = data.files?.find((item) => item.id === fileId); return file ? <button className="file-chip" key={file.id} onClick={() => void api.downloadFile(file.id, file.name, "admin")}>Open {file.name}</button> : null; })}</div>}
+                {job.fileIds.length > 0 && <div className="file-chip-list">{job.fileIds.map((fileId) => { const file = data.files?.find((item) => item.id === fileId); return file ? <button className="file-chip" key={file.id} onClick={() => void api.openFile(file.id, "admin")}>Open {file.name}</button> : null; })}</div>}
               </span>
               <div className="potential-actions"><StatusPill tone="orange">{job.status}</StatusPill><button className="button button-small" onClick={() => { const title = window.prompt("Edit potential job title", job.title); if (title?.trim()) void mutate(`/api/potential-jobs/${job.id}`, "PATCH", { title: title.trim() }); }}>Edit</button><button className="button button-small" onClick={() => void mutate(`/api/potential-jobs/${job.id}`, "PATCH", { status: job.status === "open" ? "closed" : "open" })}>{job.status === "open" ? "Close" : "Reopen"}</button><button className="button button-small button-danger" onClick={() => { if (window.confirm(`Delete potential job ${job.title}?`)) void mutate(`/api/potential-jobs/${job.id}`, "DELETE"); }}>Delete</button></div>
             </article>

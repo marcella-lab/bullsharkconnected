@@ -442,6 +442,23 @@ export function createApp(store: DataStore, esign: EsignService = new Configured
     res.status(201).json(project);
   }));
 
+  const accessSchema = z.object({ userIds: z.array(z.string()).default([]) });
+  app.patch("/api/projects/:projectId/access", requireRole("admin"), asyncRoute(async (req, res) => {
+    const input = accessSchema.parse(req.body);
+    await store.update((data) => {
+      const project = data.projects.find((item) => item.id === req.params.projectId);
+      if (!project) throw Object.assign(new Error("Project not found."), { status: 404 });
+      const selected = new Set(input.userIds);
+      if ([...selected].some((userId) => !data.users?.some((user) => user.id === userId && user.active))) throw Object.assign(new Error("One or more selected users are unavailable."), { status: 400 });
+      data.users?.filter((user) => user.role === "client" || user.role === "subcontractor").forEach((user) => {
+        user.projectIds = selected.has(user.id) ? [...new Set([...user.projectIds, project.id])] : user.projectIds.filter((projectId) => projectId !== project.id);
+        if (!selected.has(user.id)) user.jobIds = user.jobIds.filter((jobId) => !data.jobs.some((job) => job.id === jobId && job.projectId === project.id));
+      });
+      audit(data, "Project access updated", `${project.number} user access updated.`);
+    });
+    res.json({ ok: true });
+  }));
+
   const jobSchema = z.object({
     title: z.string().trim().min(2),
     scope: z.string().trim().min(4),
@@ -498,6 +515,21 @@ export function createApp(store: DataStore, esign: EsignService = new Configured
   }));
 
   const jobEditSchema = z.object({ title: z.string().trim().min(2), scope: z.string().trim().min(4), location: z.string().trim().min(2), price: z.coerce.number().nonnegative(), stage: z.string().trim().min(2), progress: z.coerce.number().min(0).max(100).optional(), status: z.enum(["planned", "scheduled", "in_progress", "complete", "on_hold"]).optional(), scheduleStart: z.string().date().optional().or(z.literal("")), scheduleEnd: z.string().date().optional().or(z.literal("")), clientId: z.string().min(1), contractorId: z.string().optional().or(z.literal("")) });
+  app.patch("/api/jobs/:jobId/access", requireRole("admin"), asyncRoute(async (req, res) => {
+    const input = accessSchema.parse(req.body);
+    await store.update((data) => {
+      const job = data.jobs.find((item) => item.id === req.params.jobId);
+      if (!job) throw Object.assign(new Error("Job not found."), { status: 404 });
+      const selected = new Set(input.userIds);
+      if ([...selected].some((userId) => !data.users?.some((user) => user.id === userId && user.active))) throw Object.assign(new Error("One or more selected users are unavailable."), { status: 400 });
+      data.users?.filter((user) => user.role === "client" || user.role === "subcontractor").forEach((user) => {
+        user.jobIds = selected.has(user.id) ? [...new Set([...user.jobIds, job.id])] : user.jobIds.filter((jobId) => jobId !== job.id);
+        if (selected.has(user.id)) user.projectIds = [...new Set([...user.projectIds, job.projectId])];
+      });
+      audit(data, "Job access updated", `${job.number} user access updated.`);
+    });
+    res.json({ ok: true });
+  }));
   app.patch("/api/jobs/:jobId", requireRole("admin"), asyncRoute(async (req, res) => { const input = jobEditSchema.parse(req.body); const job = await store.update((data) => { const item = data.jobs.find((candidate) => candidate.id === req.params.jobId); const client = data.clients.find((candidate) => candidate.id === input.clientId); const contractor = input.contractorId ? data.contractors.find((candidate) => candidate.id === input.contractorId) : undefined; if (!item) throw Object.assign(new Error("Job not found."), { status: 404 }); if (!client) throw Object.assign(new Error("Client not found."), { status: 404 }); if (input.contractorId && !contractor) throw Object.assign(new Error("Subcontractor not found."), { status: 404 }); const { scheduleStart, scheduleEnd, ...updates } = input; Object.assign(item, updates, { scheduleStart: scheduleStart || undefined, scheduleEnd: scheduleEnd || undefined, contractorId: contractor?.id, contractorName: contractor?.company, clientId: client.id, clientName: client.name }); if (item.status === "complete") item.progress = 100; const clientUser = userById(data, client.id); if (clientUser) clientUser.projectIds = [...new Set([...clientUser.projectIds, item.projectId])]; if (contractor) { const contractorUser = userById(data, contractor.id); if (contractorUser) { contractorUser.projectIds = [...new Set([...contractorUser.projectIds, item.projectId])]; contractorUser.jobIds = [...new Set([...contractorUser.jobIds, item.id])]; } } refreshProject(data, item.projectId); audit(data, "Job updated", `${item.number} job details updated.`); notifyJobParticipants(data, item, "Job updated", `${item.title} has been updated.`); return item; }); res.json(job); }));
   app.delete("/api/jobs/:jobId", requireRole("admin"), asyncRoute(async (req, res) => { await store.update((data) => { const index = data.jobs.findIndex((item) => item.id === req.params.jobId); if (index < 0) throw Object.assign(new Error("Job not found."), { status: 404 }); const [job] = data.jobs.splice(index, 1); data.contracts = data.contracts.filter((contract) => contract.jobId !== job.id); data.files = data.files?.map((file) => ({ ...file, jobIds: file.jobIds.filter((jobId) => jobId !== job.id) })); data.users?.forEach((user) => { user.jobIds = user.jobIds.filter((jobId) => jobId !== job.id); }); audit(data, "Job deleted", `${job.number} · ${job.title} deleted.`); }); res.json({ ok: true }); }));
   app.delete("/api/projects/:projectId", requireRole("admin"), asyncRoute(async (req, res) => { await store.update((data) => { const index = data.projects.findIndex((item) => item.id === req.params.projectId); if (index < 0) throw Object.assign(new Error("Project not found."), { status: 404 }); const [project] = data.projects.splice(index, 1); const jobIds = new Set(data.jobs.filter((job) => job.projectId === project.id).map((job) => job.id)); data.jobs = data.jobs.filter((job) => job.projectId !== project.id); data.contracts = data.contracts.filter((contract) => contract.projectId !== project.id); data.files = data.files?.filter((file) => file.projectId !== project.id); data.users?.forEach((user) => { user.projectIds = user.projectIds.filter((projectId) => projectId !== project.id); user.jobIds = user.jobIds.filter((jobId) => !jobIds.has(jobId)); }); audit(data, "Project deleted", `${project.number} · ${project.name} and its jobs deleted.`); }); res.json({ ok: true }); }));
@@ -699,7 +731,7 @@ export function createApp(store: DataStore, esign: EsignService = new Configured
     const safeRoot = resolve(contractStorage) + sep;
     const path = resolve(contract.pdfPath);
     if (!path.startsWith(safeRoot)) return res.status(400).json({ message: "Invalid contract file." });
-    res.download(path, `${contract.contractNumber}.pdf`);
+    res.type("application/pdf").sendFile(path);
   }));
 
   const interestSchema = z.object({

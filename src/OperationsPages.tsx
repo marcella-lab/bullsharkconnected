@@ -933,6 +933,9 @@ export function ProjectFilesModal({
     role === "admin" ? "client" : role === "client" ? "client" : "assigned_subcontractor",
   );
   const [editAudience, setEditAudience] = useState<FileVisibility>("admin");
+  useEffect(() => {
+    setFiles((data.files || []).filter((file) => file.projectId === project.id && (!blueprintMode || file.category === "Plans")));
+  }, [blueprintMode, data.files, project.id]);
   const projectSubcontractors = data.contractors.filter((contractor) =>
     data.jobs.some(
       (job) => job.projectId === project.id && job.contractorId === contractor.id,
