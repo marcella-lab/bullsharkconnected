@@ -823,5 +823,17 @@ html, body, #root { width: 100%; max-width: 100%; min-height: 100%; background: 
 @media (max-width: 700px) { .page-content { padding-inline: 15px; }.project-notes-media-grid, .project-detail-square-grid { grid-template-columns: minmax(0, 1fr); } }
 .invoice-log-list article { grid-template-columns: max-content minmax(0, 1fr) auto; align-items: center; gap: 10px; }.invoice-log-list article > div { display: grid; gap: 4px; }.invoice-log-list article > div > strong { white-space: nowrap; }.invoice-log-list .text-button { font-size: 10px; white-space: nowrap; }
 .project-invoices-card { height: 300px !important; min-height: 0 !important; overflow: hidden !important; }.project-invoices-card .square-card-content { overflow: hidden !important; }.project-invoices-card .square-scroll-list { overflow-y: auto !important; }
+/* Project detail cards should use only the space their contents need. */
+.project-detail-square-grid { align-items: start; }
+.project-detail-square-grid .detail-square-card, .project-invoices-card { height: auto !important; min-height: 0 !important; }
+.project-detail-square-grid .square-card-content { flex: 0 0 auto; overflow: visible !important; }
+.project-detail-square-grid .square-scroll-list { max-height: 240px; overflow-y: auto; align-content: start; }
+.project-notes-media-grid > .panel { min-height: 0; }
+.project-notes-media-grid { align-items: start; }
+.project-notes-media-grid .project-notes-detail { min-height: 260px; }
+.detail-photo-card { min-height: 390px !important; }
+.detail-photo-card .detail-photo-strip { min-height: 275px; }
+.detail-file-card { min-height: 0 !important; }
+@media (max-width: 700px) { .project-detail-square-grid .square-scroll-list { max-height: 220px; }.project-notes-media-grid .project-notes-detail { min-height: 0; }.detail-photo-card { min-height: 330px !important; }.detail-photo-card .detail-photo-strip { min-height: 220px; } }
 /* Menus are rendered above cards, so card content never needs to spill out. */
 .action-menu-portal { position: fixed !important; right: auto !important; z-index: 3000 !important; }
