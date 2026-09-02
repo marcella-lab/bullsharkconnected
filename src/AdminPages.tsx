@@ -279,6 +279,11 @@ export function AdminProjects({
         {visibleProjects.map((project) => {
           const jobs = data.jobs.filter((job) => job.projectId === project.id);
           const workStatus = projectWorkStatus(project, jobs);
+          const stageOptions = Array.from(new Map([
+            ...(data.settings.stages || []).map((stage) => [stage.name, stage] as const),
+            [project.currentStage, { name: project.currentStage, percent: project.progress }] as const,
+          ]).values());
+          const progressOptions = Array.from(new Set([0, 5, 10, 15, 20, 25, 35, 50, 60, 75, 85, 90, 95, 100, project.progress])).sort((a, b) => a - b);
           return (
             <section className={`project-card ${project.status === "complete" ? "project-complete" : ""}`} key={project.id}>
               <header>
@@ -289,18 +294,12 @@ export function AdminProjects({
                     <MapPin size={14} /> {project.address}
                   </p>
                 </div>
-                <div className="project-summary">
-                  <div><small>Status</small><span className={`project-work-status project-work-${workStatus}`}>{projectWorkStatusLabel(workStatus)}</span></div>
-                  <div>
-                    <small>Stage</small>
-                    <strong>{project.currentStage}</strong>
-                  </div>
-                  <div>
-                    <small>Progress</small>
-                    <strong>{project.progress}%</strong>
-                  </div>
+                <div className="project-summary project-quick-update">
+                  <label><small>Status</small><select aria-label={`Update status for ${project.name}`} value={workStatus} disabled={busy} onChange={(event) => void submit(() => mutate(`/api/projects/${project.id}/work-status`, "PATCH", { status: event.target.value }))}>{["new", "lost", "scheduled", "in_progress", "completed"].map((status) => <option key={status} value={status}>{projectWorkStatusLabel(status as ReturnType<typeof projectWorkStatus>)}</option>)}</select></label>
+                  <label><small>Stage</small><select aria-label={`Update stage for ${project.name}`} value={project.currentStage} disabled={busy} onChange={(event) => { const stage = stageOptions.find((item) => item.name === event.target.value)!; void submit(() => mutate(`/api/projects/${project.id}/progress`, "PATCH", { stage: stage.name, progress: stage.percent, override: true })); }}>{stageOptions.map((stage) => <option key={stage.name} value={stage.name}>{stage.name}</option>)}</select></label>
+                  <label><small>Progress</small><select aria-label={`Update progress for ${project.name}`} value={project.progress} disabled={busy} onChange={(event) => void submit(() => mutate(`/api/projects/${project.id}/progress`, "PATCH", { stage: project.currentStage, progress: Number(event.target.value), override: true }))}>{progressOptions.map((progress) => <option key={progress} value={progress}>{progress}%</option>)}</select></label>
                 </div>
-                {canCreate && <ActionMenu className="project-menu" label="Project actions" items={[{ label: "Add job", onSelect: () => setDialog({ type: "job", project }) }, { label: "Edit project", onSelect: () => onOpenProject?.(project) }, { label: "Set status: New", onSelect: () => void submit(() => mutate(`/api/projects/${project.id}/work-status`, "PATCH", { status: "new" })) }, { label: "Set status: Lost", onSelect: () => void submit(() => mutate(`/api/projects/${project.id}/work-status`, "PATCH", { status: "lost" })) }, { label: "Set status: Scheduled", onSelect: () => void submit(() => mutate(`/api/projects/${project.id}/work-status`, "PATCH", { status: "scheduled" })) }, { label: "Set status: In progress", onSelect: () => void submit(() => mutate(`/api/projects/${project.id}/work-status`, "PATCH", { status: "in_progress" })) }, { label: "Set status: Completed", onSelect: () => void submit(() => mutate(`/api/projects/${project.id}/work-status`, "PATCH", { status: "completed" })) }, { label: "Update progress / phase", onSelect: () => { const stage = window.prompt("Project stage", project.currentStage); if (!stage?.trim()) return; const progress = window.prompt("Project progress (0–100)", String(project.progress)); if (progress === null || Number.isNaN(Number(progress))) return; void submit(() => mutate(`/api/projects/${project.id}/progress`, "PATCH", { stage: stage.trim(), progress: Number(progress), override: true })); } }, { label: project.status === "complete" ? "Reopen project" : "Mark project complete", onSelect: () => void submit(() => mutate(`/api/projects/${project.id}/complete`, "PATCH", { complete: project.status !== "complete" })) }, { label: "Delete project", destructive: true, dividerBefore: true, onSelect: () => { if (window.confirm(`Delete ${project.name} and all of its jobs? This cannot be undone.`)) void submit(() => mutate(`/api/projects/${project.id}`, "DELETE")); } }]} />}
+                {canCreate && <ActionMenu className="project-menu" label="Project actions" items={[{ label: "Add job", onSelect: () => setDialog({ type: "job", project }) }, { label: "Edit project", onSelect: () => onOpenProject?.(project) }, { label: "Delete project", destructive: true, dividerBefore: true, onSelect: () => { if (window.confirm(`Delete ${project.name} and all of its jobs? This cannot be undone.`)) void submit(() => mutate(`/api/projects/${project.id}`, "DELETE")); } }]} />}
               </header>
             </section>
           );
