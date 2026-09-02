@@ -87,6 +87,12 @@ async function migrate(data: PortalData) {
   }
   for (const project of data.projects) {
     if (!project.milestones) { project.milestones = []; changed = true; }
+    const client = data.clients.find((item) => item.id === project.clientId);
+    // Preserve the contact information already shown on existing projects,
+    // while giving every project its own editable contact record from now on.
+    if (project.clientContactName === undefined) { project.clientContactName = client?.name || project.clientName; changed = true; }
+    if (project.clientContactEmail === undefined) { project.clientContactEmail = client?.email || ""; changed = true; }
+    if (project.clientContactPhone === undefined) { project.clientContactPhone = client?.phone || ""; changed = true; }
   }
   for (const job of data.jobs) {
     if (!job.clientId) {

@@ -67,7 +67,7 @@ export function ProjectDetail({ data, role, project, onBack, onJob }: { data: Bo
   const spent = expenses.reduce((total, item) => total + item.amount, 0);
   const yardage = (data.yardageRows || []).find((item) => item.projectId === project.id);
   const supplier = supplierInfo === undefined ? (yardage?.concreteCompany ? (data.concreteSuppliers || []).find((item) => item.company.trim().toLowerCase() === yardage.concreteCompany.trim().toLowerCase()) : undefined) : supplierInfo;
-  const [contactDetails, setContactDetails] = useState({ name: client?.name || project.clientName || "", email: client?.email || "", phone: client?.phone || clientUser?.phone || "", contractCost: project.budget });
+  const [contactDetails, setContactDetails] = useState({ name: project.clientContactName || client?.name || project.clientName || "", email: project.clientContactEmail || client?.email || "", phone: project.clientContactPhone || client?.phone || clientUser?.phone || "", contractCost: project.budget });
   const [editingContact, setEditingContact] = useState(false);
   const [contactStatus, setContactStatus] = useState("");
   const [accessStatus, setAccessStatus] = useState("");
@@ -77,7 +77,7 @@ export function ProjectDetail({ data, role, project, onBack, onJob }: { data: Bo
   useEffect(() => { setMilestones(project.milestones || []); }, [project.id, project.milestones]);
   useEffect(() => { setExpenses((data.projectExpenses || []).filter((item) => item.projectId === project.id)); }, [data.projectExpenses, project.id]);
   useEffect(() => { setInvoiceLogs((data.projectInvoiceLogs || []).filter((item) => item.projectId === project.id)); }, [data.projectInvoiceLogs, project.id]);
-  useEffect(() => { setContactDetails({ name: client?.name || project.clientName || "", email: client?.email || "", phone: client?.phone || clientUser?.phone || "", contractCost: project.budget }); }, [client?.email, client?.name, client?.phone, clientUser?.phone, project.budget, project.clientName, project.id]);
+  useEffect(() => { setContactDetails({ name: project.clientContactName || client?.name || project.clientName || "", email: project.clientContactEmail || client?.email || "", phone: project.clientContactPhone || client?.phone || clientUser?.phone || "", contractCost: project.budget }); }, [client?.email, client?.name, client?.phone, clientUser?.phone, project.budget, project.clientContactEmail, project.clientContactName, project.clientContactPhone, project.clientName, project.id]);
   const saveNotes = async () => { try { await api.mutate(`/api/projects/${project.id}/field-notes`, role, "PATCH", { fieldNotes: notes }); setNotesStatus("Saved"); } catch (error) { setNotesStatus(error instanceof Error ? error.message : "Unable to save notes."); } };
   const addMilestone = async (event: React.FormEvent<HTMLFormElement>) => { event.preventDefault(); const formElement = event.currentTarget; const form = new FormData(formElement); setMilestoneError(""); try { const item = await api.mutate<ProjectMilestone>(`/api/projects/${project.id}/milestones`, role, "POST", { title: form.get("title"), date: form.get("date"), details: form.get("details") }); setMilestones((current) => [...current, item].sort((a, b) => a.date.localeCompare(b.date))); formElement.reset(); } catch (error) { setMilestoneError(error instanceof Error ? error.message : "Unable to add the milestone."); } };
   const deleteMilestone = async (milestoneId: string) => { if (!window.confirm("Remove this milestone?")) return; try { await api.mutate(`/api/projects/${project.id}/milestones/${milestoneId}`, role, "DELETE"); setMilestones((current) => current.filter((item) => item.id !== milestoneId)); } catch (error) { setMilestoneError(error instanceof Error ? error.message : "Unable to remove the milestone."); } };
@@ -93,7 +93,7 @@ export function ProjectDetail({ data, role, project, onBack, onJob }: { data: Bo
 
   return <>
     <button className="button button-ghost" onClick={onBack}><ArrowLeft size={16}/> Projects</button>
-    <PageHeading eyebrow={`${project.number} · Project detail`} title={project.name} detail={`${project.clientName} · ${project.address}`} actions={<button className="button button-secondary" onClick={() => setFiles(true)}><FolderOpen size={16}/> Files</button>} />
+    <PageHeading eyebrow={`${project.number} · Project detail`} title={project.name} detail={`${project.clientContactName || project.clientName} · ${project.address}`} actions={<button className="button button-secondary" onClick={() => setFiles(true)}><FolderOpen size={16}/> Files</button>} />
     <section className="metric-grid">
       <article className="metric-card"><span>Current phase</span><strong className="metric-text">{project.currentStage}</strong><small>Coordinator: {project.manager}</small></article>
       <article className="metric-card"><span>Completion</span><strong>{project.progress}%</strong><ProgressBar value={project.progress}/></article>

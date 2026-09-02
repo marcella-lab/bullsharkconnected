@@ -62,6 +62,10 @@ export interface Project {
   address: string;
   clientId: string;
   clientName: string;
+  /** Project-only contact details. They never control portal access. */
+  clientContactName?: string;
+  clientContactEmail?: string;
+  clientContactPhone?: string;
   manager: string;
   budget: number;
   progress: number;
