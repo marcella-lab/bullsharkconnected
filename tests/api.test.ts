@@ -202,5 +202,6 @@ describe("BullShark portal API", () => {
     expect(bootstrap.headers["cache-control"]).toContain("no-store");
     expect(bootstrap.body.projects.find((item: { id: string }) => item.id === "project-1").clientName).toBe("Updated Tanner Family");
     expect(bootstrap.body.clients.find((item: { id: string }) => item.id === "client-1").email).toBe("updated.tanner@example.com");
+    expect(bootstrap.body.users.find((item: { id: string }) => item.id === "client-1").email).not.toBe("updated.tanner@example.com");
   });
 });
