@@ -15,6 +15,8 @@ import { Layout } from "./Layout";
 import { AdminInvoices, AdminPayRequests, AdminUsers, NotificationsPage, SubPayRequests } from "./OperationsPages";
 import { ClientPages, SubcontractorPages } from "./RolePages";
 import { YardagePage } from "./YardagePage";
+import { FinancePage } from "./FinancePage";
+import { SuppliersPage } from "./SuppliersPage";
 import { SpendingPage } from "./SpendingPage";
 import { JobDetail, ProjectDetail } from "./DetailPages";
 import type { BootstrapPayload, Role } from "./types";
@@ -117,6 +119,8 @@ export function App() {
     else if (detail?.type === "job") { const job = data.jobs.find((item) => item.id === detail.id); page = job ? <JobDetail data={data} role={role} job={job} onBack={() => setDetail({ type: "project", id: job.projectId })} onUpdated={() => void refresh(role)} /> : <AdminOverview data={data} onView={setView} onOpenJob={(job) => setDetail({ type: "job", id: job.id })} />; }
     else if (view === "projects") page = <AdminProjects data={data} mutate={mutate} onOpenProject={(project) => setDetail({ type: "project", id: project.id })} />;
     else if (view === "yardage") page = <YardagePage data={data} mutate={mutate} />;
+    else if (view === "financials") page = <FinancePage data={data} mutate={mutate} />;
+    else if (view === "suppliers") page = <SuppliersPage data={data} />;
     else if (view === "spending" && role === "admin") page = <SpendingPage data={data} mutate={mutate} />;
     else if (view === "schedule") page = <AdminSchedule data={data} mutate={mutate} />;
     else if (view === "contracts") page = <AdminContracts data={data} mutate={mutate} />;

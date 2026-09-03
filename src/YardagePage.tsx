@@ -1,9 +1,7 @@
 import { Download, Plus, Printer, Trash2 } from "lucide-react";
 import { useMemo, useState, type FormEvent } from "react";
-import { api } from "./api";
 import type {
   BootstrapPayload,
-  ConcreteSupplier,
   YardageRow,
   YardageStatus,
 } from "./types";
@@ -22,10 +20,6 @@ type Draft = Pick<
   | "dimensions"
   | "thickness"
   | "footers"
-  | "concreteCost"
-  | "subCost"
-  | "contractCost"
-  | "additionalCosts"
   | "additionalConcreteYardage"
   | "wasteOverageYardage"
   | "notes"
@@ -39,18 +33,10 @@ const blank: Draft = {
   dimensions: "",
   thickness: 6,
   footers: "",
-  concreteCost: 0,
-  subCost: 0,
-  contractCost: 0,
-  additionalCosts: 0,
   additionalConcreteYardage: 0,
   wasteOverageYardage: 0,
   notes: "",
 };
-const money = (n: number) =>
-  new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(
-    n || 0,
-  );
 const cy = (n: number) => `${(n || 0).toFixed(2)} CY`;
 const heads = [
   "Status",
@@ -67,11 +53,6 @@ const heads = [
   "Additional Concrete CY",
   "Waste/Overage CY",
   "Final Order CY",
-  "Concrete Cost",
-  "Sub Cost",
-  "C+S",
-  "Contract Cost",
-  "Profit / Rebar / Misc",
   "Actions",
 ];
 export function YardagePage({
@@ -82,27 +63,12 @@ export function YardagePage({
   mutate: Mutate;
 }) {
   const [rows, setRows] = useState<YardageRow[]>(data.yardageRows || []),
-    [suppliers, setSuppliers] = useState<ConcreteSupplier[]>(
-      data.concreteSuppliers || [],
-    ),
     [draft, setDraft] = useState<Draft>(blank),
     [editing, setEditing] = useState<string | null>(null);
   const [search, setSearch] = useState(""),
     [status, setStatus] = useState("ALL"),
     [state, setState] = useState("ALL"),
-    [sort, setSort] = useState("client"),
-    [supplierSearch, setSupplierSearch] = useState(""),
-    [supplierState, setSupplierState] = useState("ALL"),
-    [supplierType, setSupplierType] = useState("ALL"),
-    [supplier, setSupplier] = useState({
-      company: "",
-      supplierType: "",
-      contactName: "",
-      phone: "",
-      email: "",
-      state: "",
-      notes: "",
-    });
+    [sort, setSort] = useState("client");
   const put = <K extends keyof Draft>(key: K, value: Draft[K]) =>
     setDraft((old) => ({ ...old, [key]: value }));
   const active = rows.filter((r) => r.status === "ACTIVE");
@@ -121,11 +87,7 @@ export function YardagePage({
           const v = (r: YardageRow) =>
             sort === "total"
               ? r.finalOrderYardage
-              : sort === "contract"
-                ? r.contractCost
-                : sort === "profit"
-                  ? r.contractCost - r.concreteCost - r.subCost
-                  : sort === "state"
+              : sort === "state"
                     ? r.state
                     : sort === "status"
                       ? r.status
@@ -135,14 +97,6 @@ export function YardagePage({
             : String(v(a)).localeCompare(String(v(b)));
         }),
     [rows, search, status, state, sort],
-  );
-  const shownSuppliers = suppliers.filter(
-    (item) =>
-      (supplierState === "ALL" || item.state === supplierState) &&
-      (supplierType === "ALL" || item.supplierType === supplierType) &&
-      `${item.company} ${item.contactName || ""} ${item.supplierType || ""}`
-        .toLowerCase()
-        .includes(supplierSearch.toLowerCase()),
   );
   const save = async (e: FormEvent) => {
     e.preventDefault();
@@ -168,10 +122,6 @@ export function YardagePage({
       dimensions: r.dimensions,
       thickness: r.thickness,
       footers: r.footers,
-      concreteCost: r.concreteCost,
-      subCost: r.subCost,
-      contractCost: r.contractCost,
-      additionalCosts: r.additionalCosts,
       additionalConcreteYardage: r.additionalConcreteYardage || 0,
       wasteOverageYardage: r.wasteOverageYardage || 0,
       notes: r.notes || "",
@@ -207,11 +157,6 @@ export function YardagePage({
       r.additionalConcreteYardage,
       r.wasteOverageYardage,
       r.finalOrderYardage,
-      r.concreteCost,
-      r.subCost,
-      r.concreteCost + r.subCost,
-      r.contractCost,
-      r.contractCost - r.concreteCost - r.subCost,
     ]);
     const csv = [heads.slice(0, -1), ...vals]
       .map((line) =>
@@ -224,35 +169,13 @@ export function YardagePage({
     link.click();
     URL.revokeObjectURL(link.href);
   };
-  const saveSupplier = async (e: FormEvent) => {
-    e.preventDefault();
-    const item = await api.mutate<ConcreteSupplier>(
-      "/api/yardage/suppliers",
-      "admin",
-      "POST",
-      supplier,
-    );
-    setSuppliers((old) => [item, ...old.filter((s) => s.id !== item.id)]);
-    setSupplier({
-      company: "",
-      supplierType: "",
-      contactName: "",
-      phone: "",
-      email: "",
-      state: "",
-      notes: "",
-    });
-  };
   return (
     <>
       <section className="page-heading">
         <div>
           <p className="eyebrow">Concrete estimating</p>
           <h1>Yardage Calculator</h1>
-          <p>
-            Saved concrete quantities, ready-to-order yardage, and margin
-            tracking.
-          </p>
+          <p>Saved concrete quantities and ready-to-order yardage.</p>
         </div>
         <div className="page-actions">
           <button
@@ -270,29 +193,8 @@ export function YardagePage({
         </div>
       </section>
       <section className="metric-grid yardage-metrics">
-        <Metric label="Active projects" value={String(active.length)} />
-        <Metric
-          label="Final order — active"
-          value={cy(active.reduce((n, r) => n + r.finalOrderYardage, 0))}
-        />
-        <Metric
-          label="Total contract value"
-          value={money(active.reduce((n, r) => n + r.contractCost, 0))}
-        />
-        <Metric
-          label="Estimated profit"
-          value={money(
-            active.reduce(
-              (n, r) =>
-                n +
-                r.contractCost -
-                r.concreteCost -
-                r.subCost -
-                r.additionalCosts,
-              0,
-            ),
-          )}
-        />
+        <Metric label="Active calculator rows" value={String(active.length)} />
+        <Metric label="Final order — active" value={cy(active.reduce((n, r) => n + r.finalOrderYardage, 0))} />
       </section>
       <section className="yardage-panel">
         <div className="panel-title">
@@ -330,16 +232,10 @@ export function YardagePage({
             placeholder="State"
           />
           <input
-            list="supplier-list"
             value={draft.concreteCompany}
             onChange={(e) => put("concreteCompany", e.target.value)}
             placeholder="Concrete company"
           />
-          <datalist id="supplier-list">
-            {suppliers.map((s) => (
-              <option key={s.id} value={s.company} />
-            ))}
-          </datalist>
           <input
             value={draft.client}
             onChange={(e) => put("client", e.target.value)}
@@ -384,21 +280,6 @@ export function YardagePage({
             value={draft.wasteOverageYardage}
             set={(v) => put("wasteOverageYardage", v)}
           />
-          <Num
-            label="Concrete cost ($)"
-            value={draft.concreteCost}
-            set={(v) => put("concreteCost", v)}
-          />
-          <Num
-            label="Sub cost ($)"
-            value={draft.subCost}
-            set={(v) => put("subCost", v)}
-          />
-          <Num
-            label="Contract cost ($)"
-            value={draft.contractCost}
-            set={(v) => put("contractCost", v)}
-          />
           <button className="button button-primary" type="submit">
             <Plus size={15} /> {editing ? "Save row" : "Add row"}
           </button>
@@ -433,8 +314,6 @@ export function YardagePage({
             <option value="client">Sort: Client</option>
             <option value="state">Sort: State</option>
             <option value="total">Sort: Final order</option>
-            <option value="contract">Sort: Contract cost</option>
-            <option value="profit">Sort: Profit</option>
             <option value="status">Sort: Status</option>
           </select>
         </div>
@@ -479,15 +358,6 @@ export function YardagePage({
                   <td>
                     <strong>{cy(r.finalOrderYardage)}</strong>
                   </td>
-                  <td>{money(r.concreteCost)}</td>
-                  <td>{money(r.subCost)}</td>
-                  <td>{money(r.concreteCost + r.subCost)}</td>
-                  <td>{money(r.contractCost)}</td>
-                  <td>
-                    <strong>
-                      {money(r.contractCost - r.concreteCost - r.subCost)}
-                    </strong>
-                  </td>
                   <td className="table-actions">
                     <button
                       className="button button-small"
@@ -513,7 +383,7 @@ export function YardagePage({
               ))}
               {!shown.length && (
                 <tr>
-                  <td colSpan={20} className="empty-cell">
+                  <td colSpan={15} className="empty-cell">
                     No calculator rows match these filters. Add your first
                     project above.
                   </td>
@@ -522,73 +392,6 @@ export function YardagePage({
             </tbody>
           </table>
         </div>
-      </section>
-      <section className="yardage-panel supplier-panel">
-        <div className="panel-title">
-          <div>
-            <h2>Suppliers</h2>
-            <p>Save and filter supplier contact details for quick reference.</p>
-          </div>
-        </div>
-        <form className="supplier-form" onSubmit={saveSupplier}>
-          <input
-            value={supplier.company}
-            onChange={(e) =>
-              setSupplier({ ...supplier, company: e.target.value })
-            }
-            placeholder="Supplier company"
-            required
-          />
-          <input className="supplier-type-field" value={supplier.supplierType} onChange={(e) => setSupplier({ ...supplier, supplierType: e.target.value })} placeholder="Supplier type" />
-          <input
-            value={supplier.contactName}
-            onChange={(e) =>
-              setSupplier({ ...supplier, contactName: e.target.value })
-            }
-            placeholder="Contact name"
-          />
-          <input
-            value={supplier.phone}
-            onChange={(e) =>
-              setSupplier({ ...supplier, phone: e.target.value })
-            }
-            placeholder="Phone"
-          />
-          <input
-            type="email"
-            value={supplier.email}
-            onChange={(e) =>
-              setSupplier({ ...supplier, email: e.target.value })
-            }
-            placeholder="Email"
-          />
-          <input
-            className="supplier-state-field"
-            value={supplier.state}
-            onChange={(e) =>
-              setSupplier({ ...supplier, state: e.target.value.toUpperCase() })
-            }
-            placeholder="State"
-          />
-          <button className="button button-dark">Save supplier</button>
-        </form>
-        {suppliers.length > 0 && (<>
-          <div className="supplier-filter"><input value={supplierSearch} onChange={(e) => setSupplierSearch(e.target.value)} placeholder="Search suppliers" /><select className="supplier-state-field" value={supplierState} onChange={(e) => setSupplierState(e.target.value)}><option value="ALL">All states</option>{Array.from(new Set(suppliers.map((item) => item.state).filter(Boolean))).map((item) => <option key={item} value={item}>{item}</option>)}</select><select className="supplier-type-field" value={supplierType} onChange={(e) => setSupplierType(e.target.value)}><option value="ALL">All supplier types</option>{Array.from(new Set(suppliers.map((item) => item.supplierType).filter(Boolean))).map((item) => <option key={item} value={item}>{item}</option>)}</select></div>
-          <div className="supplier-list">
-            {shownSuppliers.map((s) => (
-              <div key={s.id}>
-                <strong>{s.company}</strong>
-                <span className="supplier-tags">{s.state && <b className="supplier-state-field">{s.state}</b>}{s.supplierType && <b className="supplier-type-field">{s.supplierType}</b>}</span>
-                <span>
-                  {[s.contactName, s.phone, s.email]
-                    .filter(Boolean)
-                    .join(" · ") || "No contact details"}
-                </span>
-              </div>
-            ))}
-            {!shownSuppliers.length && <p className="empty-cell">No suppliers match these filters.</p>}
-          </div>
-        </>)}
       </section>
     </>
   );
