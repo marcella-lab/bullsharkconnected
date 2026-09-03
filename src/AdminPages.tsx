@@ -15,7 +15,7 @@ import {
   Trash2,
   UserRoundCheck,
 } from "lucide-react";
-import { useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type DragEvent, type FormEvent } from "react";
 import { api } from "./api";
 import { ProjectFilesModal } from "./OperationsPages";
 import {
@@ -227,9 +227,24 @@ export function AdminProjects({
   const [projectFilter, setProjectFilter] = useState<
     "all" | "active" | "on_hold" | "complete"
   >("all");
+  const [projectOrder, setProjectOrder] = useState<string[]>([]);
+  const [draggingProjectId, setDraggingProjectId] = useState<string | null>(null);
+  useEffect(() => {
+    setProjectOrder([...data.projects].sort((a, b) => (a.displayOrder ?? Number.MAX_SAFE_INTEGER) - (b.displayOrder ?? Number.MAX_SAFE_INTEGER)).map((project) => project.id));
+  }, [data.projects]);
   const visibleProjects = data.projects.filter(
     (project) => projectFilter === "all" || project.status === projectFilter,
-  ).sort((a, b) => Number(a.status === "complete") - Number(b.status === "complete"));
+  ).sort((a, b) => projectOrder.indexOf(a.id) - projectOrder.indexOf(b.id));
+  const moveProject = (targetProjectId: string) => {
+    if (!draggingProjectId || draggingProjectId === targetProjectId) return;
+    const next = [...projectOrder];
+    const from = next.indexOf(draggingProjectId); const to = next.indexOf(targetProjectId);
+    if (from < 0 || to < 0) return;
+    next.splice(from, 1); next.splice(to, 0, draggingProjectId);
+    setProjectOrder(next); setDraggingProjectId(null);
+    void submit(() => mutate("/api/projects/order", "PATCH", { projectIds: next }));
+  };
+  const allowDrop = (event: DragEvent<HTMLElement>) => { if (canCreate && projectFilter === "all") event.preventDefault(); };
   const submit = async (action: () => Promise<unknown>) => {
     setBusy(true);
     try {
@@ -275,7 +290,7 @@ export function AdminProjects({
         </label>
       </div>
       <WorkStatusStrip jobs={data.jobs} />
-      <div className="project-stack">
+      <div className="project-stack" aria-label="Project priority board">
         {visibleProjects.map((project) => {
           const jobs = data.jobs.filter((job) => job.projectId === project.id);
           const workStatus = projectWorkStatus(project, jobs);
@@ -285,7 +300,7 @@ export function AdminProjects({
           ]).values());
           const progressOptions = Array.from(new Set([0, 5, 10, 15, 20, 25, 35, 50, 60, 75, 85, 90, 95, 100, project.progress])).sort((a, b) => a - b);
           return (
-            <section className={`project-card ${project.status === "complete" ? "project-complete" : ""}`} key={project.id}>
+            <section className={`project-card ${project.status === "complete" ? "project-complete" : ""} ${draggingProjectId === project.id ? "project-card-dragging" : ""}`} key={project.id} draggable={canCreate && projectFilter === "all"} onDragStart={() => setDraggingProjectId(project.id)} onDragEnd={() => setDraggingProjectId(null)} onDragOver={allowDrop} onDrop={() => moveProject(project.id)}>
               <header>
                 <div className="project-identity">
                   <span className="project-code">{project.number}</span>

@@ -436,6 +436,7 @@ export function createApp(store: DataStore, esign: EsignService = new Configured
         startDate: input.startDate,
         targetDate: input.targetDate,
         status: "active",
+        displayOrder: data.projects.length,
       };
       data.projects.push(value);
       const clientUser = userById(data, client.id); if (clientUser) clientUser.projectIds = [...new Set([...clientUser.projectIds, value.id])];
@@ -443,6 +444,20 @@ export function createApp(store: DataStore, esign: EsignService = new Configured
       return value;
     });
     res.status(201).json(project);
+  }));
+
+  app.patch("/api/projects/order", requireRole("admin"), asyncRoute(async (req, res) => {
+    const input = z.object({ projectIds: z.array(z.string()).min(1) }).parse(req.body);
+    const ordered = await store.update((data) => {
+      if (new Set(input.projectIds).size !== input.projectIds.length || input.projectIds.length !== data.projects.length || input.projectIds.some((projectId) => !data.projects.some((project) => project.id === projectId))) {
+        throw Object.assign(new Error("The project order was out of date. Please try again."), { status: 400 });
+      }
+      const position = new Map(input.projectIds.map((projectId, index) => [projectId, index]));
+      data.projects.forEach((project) => { project.displayOrder = position.get(project.id)!; });
+      audit(data, "Project card order updated", "Projects & jobs priorities were rearranged.");
+      return [...data.projects].sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
+    });
+    res.json(ordered);
   }));
 
   const accessSchema = z.object({ userIds: z.array(z.string()).default([]) });

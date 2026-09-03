@@ -248,6 +248,9 @@ h1, h2, h3, p { margin-top: 0; }
 @media (max-width: 700px) { .project-detail-square-grid { grid-template-columns: 1fr; gap: 14px; margin-bottom: 26px; }.project-detail-square-grid .detail-square-card:nth-child(n) { grid-column: auto; height: auto; min-height: 240px; }.project-detail-square-grid .detail-square-card:nth-child(4) .square-scroll-list article, .project-detail-square-grid .square-scroll-list article { grid-template-columns: 86px minmax(0, 1fr) auto; }.project-detail-square-grid .detail-square-card:nth-child(4) .square-scroll-list article span { grid-template-columns: 1fr; }.project-detail-square-grid .detail-square-card:nth-child(4) .square-scroll-list article span small:last-child { text-align: left; } }
 /* Compact project list cards: content determines height, never empty space. */
 .project-stack .project-card { min-height: 0; }
+.project-stack .project-card[draggable="true"] { cursor: grab; }
+.project-stack .project-card[draggable="true"]:active { cursor: grabbing; }
+.project-stack .project-card-dragging { opacity: .48; transform: scale(.985); }
 .project-stack .project-card > header { min-height: 0; padding-top: 18px; padding-bottom: 18px; }
 .project-stack .project-card .project-identity { min-width: 0; }
 .project-stack .project-card .project-identity h2 { margin: 5px 0 7px; line-height: 1.2; }

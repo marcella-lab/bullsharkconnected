@@ -66,6 +66,8 @@ export interface Project {
   clientContactName?: string;
   clientContactEmail?: string;
   clientContactPhone?: string;
+  /** Administrator-controlled position in the Projects & jobs card board. */
+  displayOrder?: number;
   manager: string;
   budget: number;
   progress: number;

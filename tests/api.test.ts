@@ -140,6 +140,17 @@ describe("BullShark portal API", () => {
     expect(project.body.clientName).toBe("New Client");
   });
 
+  it("persists an administrator's project-card priority order", async () => {
+    const app = createApp(new MemoryDataStore());
+    const current = await request(app).get("/api/bootstrap").set(headers("admin", "admin-1"));
+    const reversed = [...current.body.projects].map((project: { id: string }) => project.id).reverse();
+    const updated = await request(app).patch("/api/projects/order").set(headers("admin", "admin-1")).send({ projectIds: reversed });
+    expect(updated.status).toBe(200);
+    const reread = await request(app).get("/api/bootstrap").set(headers("admin", "admin-1"));
+    expect([...reread.body.projects].sort((a: { displayOrder: number }, b: { displayOrder: number }) => a.displayOrder - b.displayOrder).map((project: { id: string }) => project.id)).toEqual(reversed);
+    expect((await request(app).patch("/api/projects/order").set(headers("client", "client-1")).send({ projectIds: reversed })).status).toBe(403);
+  });
+
   it("lets clients manage only their own project files while admins retain full control", async () => {
     const app = createApp(new MemoryDataStore());
     const clientFile = await request(app).post("/api/files").set(headers("client", "client-1")).send({ projectId: "project-1", jobIds: [], name: "Client photo.jpg", mimeType: "image/jpeg", contentBase64: Buffer.from("client image").toString("base64"), category: "Photos", description: "Client upload", visibility: "client" });
