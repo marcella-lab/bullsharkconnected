@@ -534,7 +534,7 @@ export function createApp(store: DataStore, esign: EsignService = new Configured
     res.status(201).json(job);
   }));
 
-  const jobEditSchema = z.object({ title: z.string().trim().min(2), scope: z.string().trim().min(4), location: z.string().trim().min(2), price: z.coerce.number().nonnegative(), stage: z.string().trim().min(2), progress: z.coerce.number().min(0).max(100).optional(), status: z.enum(["planned", "scheduled", "in_progress", "complete", "on_hold"]).optional(), scheduleStart: z.string().date().optional().or(z.literal("")), scheduleEnd: z.string().date().optional().or(z.literal("")), clientId: z.string().min(1), contractorId: z.string().optional().or(z.literal("")) });
+  const jobEditSchema = z.object({ title: z.string().trim().min(2), scope: z.string().trim().min(4), location: z.string().trim().min(2), price: z.coerce.number().nonnegative(), stage: z.string().trim().min(2), progress: z.coerce.number().min(0).max(100).optional(), status: z.enum(["planned", "scheduled", "in_progress", "complete", "on_hold"]).optional(), scheduleStart: z.string().date().optional().or(z.literal("")), scheduleEnd: z.string().date().optional().or(z.literal("")), clientId: z.string().min(1), contractorId: z.string().optional().or(z.literal("")), subcontractorInstructions: z.string().trim().max(5000).optional() });
   app.patch("/api/jobs/:jobId/access", requireRole("admin"), asyncRoute(async (req, res) => {
     const input = accessSchema.parse(req.body);
     await store.update((data) => {

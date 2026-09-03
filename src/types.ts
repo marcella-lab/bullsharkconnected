@@ -101,6 +101,7 @@ export interface Job {
   bidDue?: string;
   laborCost?: number;
   privateNotes?: string;
+  subcontractorInstructions?: string;
 }
 
 export interface Contract {
