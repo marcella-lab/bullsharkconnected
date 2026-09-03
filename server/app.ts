@@ -333,6 +333,7 @@ export function createApp(store: DataStore, esign: EsignService = new Configured
   app.get("/api/project-expenses", requireRole("admin"), asyncRoute(async (_req, res) => { const data = await store.read(); res.json(data.projectExpenses || []); }));
   app.post("/api/project-expenses", requireRole("admin"), asyncRoute(async (req, res) => { const input = z.object({ projectId: z.string().min(1), category: z.string().trim().min(2).max(80), description: z.string().trim().min(2).max(500), amount: z.coerce.number().positive(), spentOn: z.string().date() }).parse(req.body); const expense = await store.update((data) => { const project = data.projects.find((item) => item.id === input.projectId); if (!project) throw Object.assign(new Error("Project not found."), { status: 404 }); const item = { id: id("expense"), ...input, createdAt: isoNow(), createdBy: req.viewer.id }; data.projectExpenses!.unshift(item); audit(data, "Project expense added", `${project.name}: ${item.category} $${item.amount.toFixed(2)}.`); return item; }); res.status(201).json(expense); }));
   app.post("/api/projects/:projectId/invoice-log", asyncRoute(async (req, res) => {
+    if (req.viewer.role === "project_manager") return res.status(403).json({ message: "Project Managers can view existing project invoices but cannot change them." });
     const input = z.object({ invoiceNumber: z.string().trim().min(1).max(120), invoiceDate: z.string().date(), amount: z.coerce.number().positive(), description: z.string().trim().max(3000).optional(), purchasedByContractorId: z.string().optional().or(z.literal("")), attachment: z.object({ name: z.string().min(1).max(200), mimeType: z.string().min(1), contentBase64: z.string().min(1) }).optional() }).parse(req.body);
     const invoice = await store.update(async (data) => {
       const user = userById(data, req.viewer.id);
@@ -363,6 +364,7 @@ export function createApp(store: DataStore, esign: EsignService = new Configured
     res.status(201).json(invoice);
   }));
   app.patch("/api/projects/:projectId/invoice-log/:invoiceId", asyncRoute(async (req, res) => {
+    if (req.viewer.role === "project_manager") return res.status(403).json({ message: "Project Managers can view existing project invoices but cannot change them." });
     const input = z.object({ invoiceNumber: z.string().trim().min(1).max(120), invoiceDate: z.string().date(), amount: z.coerce.number().positive(), description: z.string().trim().max(3000).optional(), purchasedByContractorId: z.string().optional().or(z.literal("")) }).parse(req.body);
     const invoice = await store.update((data) => {
       const user = userById(data, req.viewer.id); const project = data.projects.find((item) => item.id === req.params.projectId);
@@ -379,6 +381,7 @@ export function createApp(store: DataStore, esign: EsignService = new Configured
     res.json(invoice);
   }));
   app.delete("/api/projects/:projectId/invoice-log/:invoiceId", asyncRoute(async (req, res) => {
+    if (req.viewer.role === "project_manager") return res.status(403).json({ message: "Project Managers can view existing project invoices but cannot change them." });
     let removedPath = "";
     await store.update((data) => {
       const user = userById(data, req.viewer.id); const project = data.projects.find((item) => item.id === req.params.projectId);
