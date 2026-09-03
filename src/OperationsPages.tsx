@@ -802,7 +802,7 @@ export function SubPayRequests({
                 <option value="">Select job</option>
                 {jobs.map((job) => (
                   <option key={job.id} value={job.id}>
-                    {job.title}{job.scheduleStart ? ` — ${dateLabel(job.scheduleStart)}` : ""}
+                    {job.title}{job.location ? ` — ${job.location}` : ""}
                   </option>
                 ))}
               </select>
