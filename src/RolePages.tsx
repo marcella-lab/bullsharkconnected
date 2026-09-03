@@ -24,27 +24,25 @@ import type { BootstrapPayload, InterestSubmission, Job } from "./types";
 const jobProject = (data: BootstrapPayload, job: Job) => data.projects.find((project) => project.id === job.projectId);
 
 export function ClientPages({ data, view }: { data: BootstrapPayload; view: string }) {
-  const scheduled = [...data.jobs].filter((job) => job.scheduleStart).sort((a, b) => (a.scheduleStart || "").localeCompare(b.scheduleStart || ""));
-  const content = (() => {
-    if (view === "schedule") return <ClientSchedule data={data} scheduled={scheduled} />;
-    if (view === "projects") return <ClientProjects data={data} />;
-    if (view === "progress") return <ClientProgress data={data} />;
-    if (view === "documents") return <InfoPage eyebrow="Project records" title="Documents" detail="Approved plans, selections, and closeout files will appear here." icon={<ClipboardCheck />} />;
-    if (view === "messages") return <InfoPage eyebrow="Project communication" title="Messages" detail="Your BullShark project team is your single point of contact for field questions and schedule changes." icon={<MessageSquareText />} />;
-    return <ClientOverview data={data} scheduled={scheduled} />;
-  })();
-  return content;
+  // Client access is intentionally limited to next steps and items that an
+  // administrator has explicitly shared with that client.
+  void view;
+  return <ClientOverview data={data} />;
 }
 
-function ClientOverview({ data, scheduled }: { data: BootstrapPayload; scheduled: Job[] }) {
-  const first = data.projects[0];
+function ClientOverview({ data }: { data: BootstrapPayload }) {
+  const [selected, setSelected] = useState<BootstrapPayload["projects"][number] | null>(null);
+  const nextSteps = data.projects
+    .flatMap((project) => (project.milestones || []).map((milestone) => ({ project, milestone })))
+    .filter(({ milestone }) => milestone.date >= new Date().toISOString().slice(0, 10))
+    .sort((a, b) => a.milestone.date.localeCompare(b.milestone.date));
   return <>
-    <PageHeading eyebrow="Client project center" title={`Welcome back, ${data.viewer.name.split(" ")[0]}.`} detail="See exactly what is happening on your project and when crews are scheduled on site." />
-    {first ? <>
-      <section className="client-hero"><div><span>{first.number}</span><h2>{first.name}</h2><p><MapPin size={15} /> {first.address}</p></div><div className="hero-progress"><strong>{first.progress}%</strong><span>Overall progress</span></div></section>
-      <section className="metric-grid client-metrics"><article className="metric-card"><span>Current stage</span><strong className="metric-text">{first.currentStage}</strong><small>Updated by your project manager</small></article><article className="metric-card"><span>Scheduled jobs</span><strong>{scheduled.length}</strong><small>Published field commitments</small></article><article className="metric-card"><span>Next crew date</span><strong className="metric-text">{dateLabel(scheduled[0]?.scheduleStart)}</strong><small>{scheduled[0]?.title || "No job scheduled"}</small></article></section>
-      <div className="dashboard-grid"><section className="panel span-two"><div className="panel-heading"><div><h2>Upcoming job schedule</h2><p>Dates crews are expected on site</p></div></div><ClientScheduleRows data={data} jobs={scheduled.slice(0, 4)} /></section><section className="panel"><div className="panel-heading"><div><h2>Project progress</h2><p>Current completion</p></div></div><div className="large-progress"><strong>{first.progress}%</strong><ProgressBar value={first.progress} /><span>{first.currentStage}</span><small>Target completion {dateLabel(first.targetDate)}</small></div></section></div>
+    <PageHeading eyebrow="Client portal" title="Your project" detail="View your next steps and the project photos and files BullShark has shared with you." />
+    {data.projects.length ? <>
+      <section className="panel"><div className="panel-heading"><div><h2>Next steps</h2><p>Upcoming project milestones and reminders.</p></div></div>{nextSteps.length ? <div className="milestone-list">{nextSteps.map(({ project, milestone }) => <article key={milestone.id}><strong>{dateLabel(milestone.date)}</strong><span><b>{milestone.title}</b>{milestone.details && <small>{milestone.details}</small>}<small>{project.name}</small></span></article>)}</div> : <p className="panel-empty">No upcoming milestones have been shared yet.</p>}</section>
+      <section className="project-stack">{data.projects.map((project) => { const sharedFiles = (data.files || []).filter((file) => file.projectId === project.id); const photoCount = sharedFiles.filter((file) => file.mimeType.startsWith("image/")).length; return <section className="project-card client-project" key={project.id}><header><div className="project-identity"><span className="project-code">{project.number}</span><h2>{project.name}</h2><p><MapPin size={14} /> {project.address}</p></div><div className="project-summary"><div><small>Shared photos</small><strong>{photoCount}</strong></div><div><small>Shared files</small><strong>{sharedFiles.length - photoCount}</strong></div><button className="button button-secondary" onClick={() => setSelected(project)}>View shared photos & files</button></div></header></section>; })}</section>
     </> : <EmptyState title="No project assigned" detail="BullShark will add your project when it is ready." />}
+    {selected && <ProjectFilesModal data={data} project={selected} role="client" onClose={() => setSelected(null)} />}
   </>;
 }
 

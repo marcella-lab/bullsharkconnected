@@ -55,7 +55,8 @@ describe("BullShark portal API", () => {
     expect(response.body.projects).toHaveLength(1);
     expect(response.body.projects[0].clientId).toBe("client-1");
     expect(response.body.contracts).toEqual([]);
-    expect(response.body.jobs.some((job: { scheduleStart?: string }) => Boolean(job.scheduleStart))).toBe(true);
+    expect(response.body.jobs).toEqual([]);
+    expect(response.body.projects[0].milestones).toEqual(expect.any(Array));
   });
 
   it("completes the interested flow and returns the existing confirmation on repeat", async () => {
@@ -170,18 +171,16 @@ describe("BullShark portal API", () => {
     expect(after.body.projectExpenses).toHaveLength(before.body.projectExpenses.length);
   });
 
-  it("lets clients manage only their own project files while admins retain full control", async () => {
+  it("keeps client project files read-only while admins retain full control", async () => {
     const app = createApp(new MemoryDataStore());
     const clientFile = await request(app).post("/api/files").set(headers("client", "client-1")).send({ projectId: "project-1", jobIds: [], name: "Client photo.jpg", mimeType: "image/jpeg", contentBase64: Buffer.from("client image").toString("base64"), category: "Photos", description: "Client upload", visibility: "client" });
-    expect(clientFile.status).toBe(201);
-    const ownEdit = await request(app).patch(`/api/files/${clientFile.body.id}`).set(headers("client", "client-1")).send({ name: "Updated client photo.jpg" });
-    expect(ownEdit.status).toBe(200);
+    expect(clientFile.status).toBe(403);
     const adminFile = await request(app).post("/api/files").set(headers("admin", "admin-1")).send({ projectId: "project-1", jobIds: [], name: "Admin plan.pdf", mimeType: "application/pdf", contentBase64: Buffer.from("admin document").toString("base64"), category: "Plans", description: "Admin upload", visibility: "client" });
     expect(adminFile.status).toBe(201);
     const forbidden = await request(app).delete(`/api/files/${adminFile.body.id}`).set(headers("client", "client-1"));
     expect(forbidden.status).toBe(403);
-    const ownDelete = await request(app).delete(`/api/files/${clientFile.body.id}`).set(headers("client", "client-1"));
-    expect(ownDelete.status).toBe(200);
+    const forbiddenEdit = await request(app).patch(`/api/files/${adminFile.body.id}`).set(headers("client", "client-1")).send({ name: "Renamed plan.pdf" });
+    expect(forbiddenEdit.status).toBe(403);
   });
 
   it("separates file access between client and assigned subcontractor audiences", async () => {

@@ -7,9 +7,10 @@ import { Layout } from "../src/Layout";
 afterEach(cleanup);
 
 describe("role navigation", () => {
-  it("shows the client schedule but no invoices or estimator view", () => {
+  it("limits client navigation to their read-only project view", () => {
     render(<Layout role="client" viewerName="Bubba Orgeron" view="overview" onViewChange={() => undefined} onRoleChange={() => undefined}><div>Client content</div></Layout>);
-    expect(screen.getByText("Job schedule")).toBeTruthy();
+    expect(screen.getByText("My project")).toBeTruthy();
+    expect(screen.queryByText("Job schedule")).toBeNull();
     expect(screen.queryByText("Invoices")).toBeNull();
     expect(screen.queryByText("Estimator")).toBeNull();
   });

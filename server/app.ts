@@ -111,15 +111,18 @@ const filteredData = (data: PortalData, role: Role, viewerId: string): PortalDat
       settings: { ...data.settings, contractTemplate: "" },
       clients: data.clients.filter((client) => client.id === viewerId),
       contractors: [],
-      projects: projects.map(({ fieldNotes: _fieldNotes, milestones: _milestones, ...project }) => project),
-      jobs: data.jobs.filter((job) => projectIds.has(job.projectId)),
+      projects: projects.map(({ fieldNotes: _fieldNotes, ...project }) => ({
+        ...project,
+        milestones: (project.milestones || []).filter((milestone) => milestone.date >= isoNow().slice(0, 10)),
+      })),
+      jobs: [],
       contracts: [],
       interests: [],
       audit: [],
       users: data.users?.filter((user) => user.id === viewerId).map(({ passwordHash, ...user }) => ({ ...user, passwordHash: "" })),
       files: data.files?.filter((file) => projectIds.has(file.projectId) && fileAudienceIncludes(file.visibility, "client")),
-      payRequests: [], clientInvoices: [], projectInvoiceLogs: (data.projectInvoiceLogs || []).filter((item) => projectIds.has(item.projectId)), projectExpenses: [], potentialJobs: [], bids: [],
-      yardageRows: (data.yardageRows || []).filter((row) => projectIds.has(row.projectId || "")), concreteSuppliers: [],
+      payRequests: [], clientInvoices: [], projectInvoiceLogs: [], projectExpenses: [], potentialJobs: [], bids: [],
+      yardageRows: [], concreteSuppliers: [],
       messages: data.messages?.filter((message) => message.recipientIds.includes(viewerId) || message.senderId === viewerId),
       notifications: data.notifications?.filter((notice) => notice.userId === viewerId),
     };
@@ -300,7 +303,8 @@ export function createApp(store: DataStore, esign: EsignService = new Configured
   const canProject = (data: PortalData, user: PortalUser | undefined, projectId: string) => user?.role === "admin" || user?.role === "project_manager" || Boolean(user?.projectIds.includes(projectId)) || data.projects.some((project) => project.id === projectId && project.clientId === user?.id);
   app.post("/api/files", asyncRoute(async (req, res) => {
     if (req.viewer.role === "project_manager") return res.status(403).json({ message: "Project Managers can view existing project files but cannot change them." });
-    const input = uploadSchema.parse(req.body); const all = await store.read(); const user = userById(all, req.viewer.id); if (!canProject(all, user, input.projectId) || (req.viewer.role === "subcontractor" && (!input.jobIds.length || input.jobIds.some((jobId) => !user?.jobIds.includes(jobId)))) || (req.viewer.role === "subcontractor" && !["assigned_subcontractor", "client_and_assigned_subcontractor", "project_access"].includes(input.visibility)) || (req.viewer.role === "client" && !["client", "project_access"].includes(input.visibility))) return res.status(403).json({ message: "You cannot upload files for this work." });
+    if (req.viewer.role === "client") return res.status(403).json({ message: "Clients can only view photos and files shared with them." });
+    const input = uploadSchema.parse(req.body); const all = await store.read(); const user = userById(all, req.viewer.id); if (!canProject(all, user, input.projectId) || (req.viewer.role === "subcontractor" && (!input.jobIds.length || input.jobIds.some((jobId) => !user?.jobIds.includes(jobId)))) || (req.viewer.role === "subcontractor" && !["assigned_subcontractor", "client_and_assigned_subcontractor", "project_access"].includes(input.visibility))) return res.status(403).json({ message: "You cannot upload files for this work." });
     const bytes = Buffer.from(input.contentBase64, "base64"); if (bytes.length > 12 * 1024 * 1024) return res.status(400).json({ message: "Each file must be 12 MB or smaller." });
     const file = await store.update(async (data) => { const fileId = id("file"); await mkdir(fileStorage, { recursive: true }); const path = resolve(fileStorage, fileId); await writeFile(path, bytes); const item = { id: fileId, projectId: input.projectId, jobIds: input.jobIds, name: input.name, mimeType: input.mimeType, size: bytes.length, path, category: input.category, description: input.description, captureDate: input.captureDate || undefined, capturedToday: input.captureDate === isoNow().slice(0, 10), geoLatitude: input.geoLatitude, geoLongitude: input.geoLongitude, visibility: input.visibility as FileVisibility, uploadedBy: req.viewer.id, createdAt: isoNow() }; data.files!.unshift(item); audit(data, "File uploaded", `${item.name} uploaded${item.geoLatitude !== undefined ? " with GPS location" : ""}.`, req.viewer.role); return item; }); res.status(201).json(file);
   }));
@@ -308,7 +312,7 @@ export function createApp(store: DataStore, esign: EsignService = new Configured
     if (viewer.role === "admin") return true;
     const user = userById(data, viewer.id);
     if (!user || file.uploadedBy !== viewer.id || !canProject(data, user, file.projectId)) return false;
-    return viewer.role === "client" || (viewer.role === "subcontractor" && file.jobIds.some((jobId) => user.jobIds.includes(jobId)));
+    return viewer.role === "subcontractor" && file.jobIds.some((jobId) => user.jobIds.includes(jobId));
   };
   app.patch("/api/files/:fileId", asyncRoute(async (req, res) => { const input = z.object({ name: z.string().min(1).max(200).optional(), description: z.string().max(1000).optional(), category: z.string().optional(), visibility: z.enum(["admin", "client", "assigned_subcontractor", "client_and_assigned_subcontractor", "project_access"] as const).optional(), jobIds: z.array(z.string()).optional() }).parse(req.body); const file = await store.update((data) => { const item = data.files!.find((entry) => entry.id === String(req.params.fileId)); if (!item) throw Object.assign(new Error("File not found."), { status: 404 }); if (!canManageFile(data, item, req.viewer)) throw Object.assign(new Error("You can only edit files you uploaded in work assigned to you."), { status: 403 }); const allowedInput = req.viewer.role === "admin" ? input : { name: input.name, description: input.description, category: input.category }; Object.assign(item, allowedInput); audit(data, "File updated", `${item.name} file metadata changed.`, req.viewer.role); return item; }); res.json(file); }));
   app.delete("/api/files/:fileId", asyncRoute(async (req, res) => { let removedPath = ""; await store.update((data) => { const index = data.files!.findIndex((entry) => entry.id === String(req.params.fileId)); if (index < 0) throw Object.assign(new Error("File not found."), { status: 404 }); const file = data.files![index]; if (!canManageFile(data, file, req.viewer)) throw Object.assign(new Error("You can only delete files you uploaded in work assigned to you."), { status: 403 }); data.files!.splice(index, 1); removedPath = file.path; audit(data, "File deleted", `${file.name} was permanently deleted.`, req.viewer.role); }); if (removedPath) await unlink(removedPath).catch(() => undefined); res.json({ ok: true }); }));

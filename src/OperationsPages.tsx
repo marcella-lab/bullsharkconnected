@@ -1083,7 +1083,7 @@ export function ProjectFilesModal({
       setBusy(false);
     }
   };
-  const canManage = (file: PortalFile) => role === "admin" || file.uploadedBy === data.viewer.id;
+  const canManage = (file: PortalFile) => role === "admin" || (role === "subcontractor" && file.uploadedBy === data.viewer.id);
   const saveEdit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!editing) return;
@@ -1117,7 +1117,7 @@ export function ProjectFilesModal({
       }}
       wide
     >
-      {(role === "admin" || role === "client" || role === "subcontractor") && (
+      {(role === "admin" || role === "subcontractor") && (
         <form className="form-grid project-photo-upload" onSubmit={upload}>
           <div className="callout callout-accent">
             <FileUp size={18} />
@@ -1153,8 +1153,6 @@ export function ProjectFilesModal({
                   <option value="assigned_subcontractor">Admin + Subcontractor</option>
                   <option value="client_and_assigned_subcontractor">Admin + Client + Subcontractor</option>
                 </>
-              ) : role === "client" ? (
-                <option value="client">Client</option>
               ) : (
                 <option value="assigned_subcontractor">Subcontractor</option>
               )}
