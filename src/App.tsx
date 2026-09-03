@@ -32,6 +32,8 @@ export function App() {
   const [sessionRole, setSessionRole] = useState<Role | null>(() => savedSessionRole());
   const [mustChangePassword, setMustChangePassword] = useState(false);
   const [previewRole, setPreviewRole] = useState<Role | null>(null);
+  const [previewUserId, setPreviewUserId] = useState("");
+  const [previewAccounts, setPreviewAccounts] = useState<NonNullable<BootstrapPayload["users"]>>([]);
   const [detail, setDetail] = useState<{ type: "project" | "job"; id: string } | null>(null);
   // Several events can request a refresh at once (a save, focus, and the
   // live-update timer).  Only let the newest response change shared state;
@@ -50,6 +52,7 @@ export function App() {
       const next = await api.bootstrap(activeRole);
       if (refreshId !== latestRefresh.current) return;
       setData(next);
+      if (activeRole === "admin") setPreviewAccounts(next.users || []);
       setError("");
     } catch (requestError) {
       if (refreshId !== latestRefresh.current) return;
@@ -101,10 +104,13 @@ export function App() {
     }
   }, [notify, refresh, role]);
 
-  const changeRole = (nextRole: Role) => {
+  const changeRole = (nextRole: Role, requestedUserId?: string) => {
     if (sessionRole !== "admin") return;
-    if (nextRole === "admin") { setPreview(null); setPreviewRole(null); }
-    else { setPreview({ role: nextRole }); setPreviewRole(nextRole); }
+    if (nextRole === "admin") { setPreview(null); setPreviewRole(null); setPreviewUserId(""); }
+    else {
+      const userId = requestedUserId || previewAccounts.find((user) => user.role === nextRole && user.active)?.id;
+      setPreview({ role: nextRole, userId }); setPreviewRole(nextRole); setPreviewUserId(userId || "");
+    }
     setRole(nextRole);
     setView("overview");
   };
@@ -141,7 +147,7 @@ export function App() {
 
   return (
     <Layout role={role} viewerName={data.viewer.name} view={view} onViewChange={(nextView) => { setDetail(null); setView(nextView); }} onRoleChange={changeRole} onSignOut={() => { clearSessionToken(); setPreview(null); setSessionRole(null); setData(null); }}>
-      {sessionRole === "admin" && <section className="preview-bar"><strong>{previewRole ? `ADMIN PREVIEW MODE — Viewing as ${previewRole}` : "Administrator controls"}</strong><label>View as <select value={previewRole || "admin"} onChange={(event) => changeRole(event.target.value as Role)}><option value="admin">Admin</option><option value="client">Client</option><option value="subcontractor">Subcontractor</option></select></label>{previewRole && <button className="button button-small" onClick={() => changeRole("admin")}>Exit preview</button>}</section>}
+      {sessionRole === "admin" && <section className="preview-bar"><strong>{previewRole ? `ADMIN PREVIEW MODE — Viewing as ${previewAccounts.find((user) => user.id === previewUserId)?.name || previewRole}` : "Administrator controls"}</strong><label>View as <select value={previewRole || "admin"} onChange={(event) => changeRole(event.target.value as Role)}><option value="admin">Admin</option><option value="client">Client</option><option value="subcontractor">Subcontractor</option></select></label>{previewRole && <label>Account <select value={previewUserId} onChange={(event) => changeRole(previewRole, event.target.value)}>{previewAccounts.filter((user) => user.role === previewRole && user.active).map((user) => <option key={user.id} value={user.id}>{user.name}{user.company ? ` · ${user.company}` : ""}</option>)}</select></label>} {previewRole && <button className="button button-small" onClick={() => changeRole("admin")}>Exit preview</button>}</section>}
       {role === "project_manager" && <section className="read-only-banner"><strong>PROJECT MANAGER — VIEW ACCESS</strong><span>You can view all operational information and create a new project; existing records cannot be changed.</span></section>}
       <div className={role === "project_manager" ? "read-only-view" : ""}>{page}</div>
       <div className="toast-stack" aria-live="polite">
