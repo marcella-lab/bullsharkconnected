@@ -265,6 +265,7 @@ h1, h2, h3, p { margin-top: 0; }
 .project-menu button { min-height: 40px; padding: 10px 12px; }
 .project-card > .progress-track { margin: 0 24px 18px; }
 .job-subcontractor-instructions { margin-top: 18px; padding: 14px 16px; border-left: 3px solid var(--accent); border-radius: 8px; background: var(--accent-soft); }.job-subcontractor-instructions p { margin: 6px 0 0; white-space: pre-wrap; }
+@media (max-width: 700px) { .page-heading, .page-actions, .panel-title { align-items: stretch; flex-direction: column; }.page-actions .button { width: 100%; }.yardage-panel { padding: 14px; overflow: hidden; }.yardage-form { grid-template-columns: 1fr; }.yardage-form input, .yardage-form select, .yardage-form .button { min-height: 46px; width: 100%; }.yardage-toolbar { display: grid; grid-template-columns: 1fr; }.yardage-toolbar input, .yardage-toolbar select { width: 100%; min-width: 0; min-height: 46px; }.yardage-table { margin: 0 -14px; padding: 0 14px; }.yardage-table table { min-width: 1050px; }.table-wrap { -webkit-overflow-scrolling: touch; } }
 .job-list { border-top: 1px solid #e7edef; }
 .job-row { display: grid; grid-template-columns: minmax(230px, 1.25fr) minmax(360px, 1.45fr) 120px auto; gap: 23px; align-items: center; padding: 18px 24px; border-bottom: 1px solid #edf1f2; }
 .job-row:last-child { border-bottom: 0; }

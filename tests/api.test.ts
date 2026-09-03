@@ -124,10 +124,12 @@ describe("BullShark portal API", () => {
     const read = await request(app).get("/api/bootstrap").set(headers("project_manager", "project-manager-1"));
     const created = await request(app).post("/api/projects").set(headers("project_manager", "project-manager-1")).send({ name: "Manager-created project", address: "100 Main Street", clientId: "client-1", manager: "Project Manager", budget: 1000, startDate: "2026-09-01", targetDate: "2026-09-30" });
     const write = await request(app).delete("/api/projects/project-1").set(headers("project_manager", "project-manager-1"));
+    const existingEdit = await request(app).patch("/api/projects/project-1/field-notes").set(headers("project_manager", "project-manager-1")).send({ fieldNotes: "Should not save" });
     expect(read.status).toBe(200);
     expect(read.body.projects.length).toBeGreaterThan(0);
     expect(created.status).toBe(201);
     expect(write.status).toBe(403);
+    expect(existingEdit.status).toBe(403);
   });
 
   it("makes a newly created client account available for project assignment", async () => {

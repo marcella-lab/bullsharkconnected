@@ -9,8 +9,9 @@ export const viewerIds: Record<Role, string> = {
 
 let authToken = localStorage.getItem("bullshark-session") || "";
 let preview: { role: Role; userId?: string } | null = null;
-export const setSessionToken = (token: string) => { authToken = token; localStorage.setItem("bullshark-session", token); };
-export const clearSessionToken = () => { authToken = ""; localStorage.removeItem("bullshark-session"); };
+export const savedSessionRole = (): Role | null => { const role = localStorage.getItem("bullshark-session-role"); return role === "admin" || role === "project_manager" || role === "client" || role === "subcontractor" ? role : null; };
+export const setSessionToken = (token: string, role: Role) => { authToken = token; localStorage.setItem("bullshark-session", token); localStorage.setItem("bullshark-session-role", role); };
+export const clearSessionToken = () => { authToken = ""; localStorage.removeItem("bullshark-session"); localStorage.removeItem("bullshark-session-role"); };
 export const setPreview = (value: { role: Role; userId?: string } | null) => { preview = value; };
 const resourceHeaders = (role: Role) => ({
   ...(authToken ? { Authorization: `Bearer ${authToken}` } : { "x-user-role": role, "x-user-id": viewerIds[role] }),

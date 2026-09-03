@@ -10,7 +10,7 @@ import {
   AdminSchedule,
   AdminSettings,
 } from "./AdminPages";
-import { api, clearSessionToken, setPreview, setSessionToken } from "./api";
+import { api, clearSessionToken, savedSessionRole, setPreview, setSessionToken } from "./api";
 import { Layout } from "./Layout";
 import { AdminInvoices, AdminPayRequests, AdminUsers, NotificationsPage, SubPayRequests } from "./OperationsPages";
 import { ClientPages, SubcontractorPages } from "./RolePages";
@@ -22,12 +22,12 @@ import type { BootstrapPayload, Role } from "./types";
 type Toast = { id: number; type: "success" | "error"; message: string };
 
 export function App() {
-  const [role, setRole] = useState<Role>("admin");
+  const [role, setRole] = useState<Role>(() => savedSessionRole() || "admin");
   const [view, setView] = useState("overview");
   const [data, setData] = useState<BootstrapPayload | null>(null);
   const [error, setError] = useState("");
   const [toasts, setToasts] = useState<Toast[]>([]);
-  const [sessionRole, setSessionRole] = useState<Role | null>(null);
+  const [sessionRole, setSessionRole] = useState<Role | null>(() => savedSessionRole());
   const [mustChangePassword, setMustChangePassword] = useState(false);
   const [previewRole, setPreviewRole] = useState<Role | null>(null);
   const [detail, setDetail] = useState<{ type: "project" | "job"; id: string } | null>(null);
@@ -127,7 +127,7 @@ export function App() {
   return (
     <Layout role={role} viewerName={data.viewer.name} view={view} onViewChange={(nextView) => { setDetail(null); setView(nextView); }} onRoleChange={changeRole} onSignOut={() => { clearSessionToken(); setPreview(null); setSessionRole(null); setData(null); }}>
       {sessionRole === "admin" && <section className="preview-bar"><strong>{previewRole ? `ADMIN PREVIEW MODE — Viewing as ${previewRole}` : "Administrator controls"}</strong><label>View as <select value={previewRole || "admin"} onChange={(event) => changeRole(event.target.value as Role)}><option value="admin">Admin</option><option value="client">Client</option><option value="subcontractor">Subcontractor</option></select></label>{previewRole && <button className="button button-small" onClick={() => changeRole("admin")}>Exit preview</button>}</section>}
-      {role === "project_manager" && <section className="read-only-banner"><strong>PROJECT MANAGER — READ-ONLY ACCESS</strong><span>You can view all operational information, but cannot make changes.</span></section>}
+      {role === "project_manager" && <section className="read-only-banner"><strong>PROJECT MANAGER — VIEW ACCESS</strong><span>You can view all operational information and create a new project; existing records cannot be changed.</span></section>}
       <div className={role === "project_manager" ? "read-only-view" : ""}>{page}</div>
       <div className="toast-stack" aria-live="polite">
         {toasts.map((toast) => <div className={`toast toast-${toast.type}`} key={toast.id}>{toast.type === "success" ? <CheckCircle2 /> : <AlertCircle />}<span>{toast.message}</span><button aria-label="Dismiss notification" onClick={() => setToasts((current) => current.filter((item) => item.id !== toast.id))}><X /></button></div>)}
@@ -138,7 +138,7 @@ export function App() {
 
 function LoginScreen({ onSuccess }: { onSuccess: (role: Role, mustChange: boolean) => void }) {
   const [error, setError] = useState(""); const [busy, setBusy] = useState(false);
-  const submit = async (event: FormEvent<HTMLFormElement>) => { event.preventDefault(); const form = new FormData(event.currentTarget); setBusy(true); setError(""); try { const result = await api.login(String(form.get("email")), String(form.get("password"))); setSessionToken(result.token); onSuccess(result.user.role, result.user.mustChangePassword); } catch (e) { setError(e instanceof Error ? e.message : "Unable to sign in."); } finally { setBusy(false); } };
+  const submit = async (event: FormEvent<HTMLFormElement>) => { event.preventDefault(); const form = new FormData(event.currentTarget); setBusy(true); setError(""); try { const result = await api.login(String(form.get("email")), String(form.get("password"))); setSessionToken(result.token, result.user.role); onSuccess(result.user.role, result.user.mustChangePassword); } catch (e) { setError(e instanceof Error ? e.message : "Unable to sign in."); } finally { setBusy(false); } };
   return <main className="boot-screen"><span className="brand-mark">B</span><h1>BullShark Connected</h1><p>Secure operations portal</p><form className="login-form" onSubmit={submit}><label>Email<input name="email" type="email" required autoComplete="username" /></label><label>Password<input name="password" type="password" required autoComplete="current-password" /></label>{error && <p className="form-error">{error}</p>}<button className="button button-primary button-full" disabled={busy}>{busy ? "Signing in…" : "Sign in"}</button><small>New accounts: use the temporary password provided by your administrator.</small></form></main>;
 }
 function PasswordScreen({ role, onDone }: { role: Role; onDone: () => void }) { const [error, setError] = useState(""); const [busy, setBusy] = useState(false); const submit = async (event: FormEvent<HTMLFormElement>) => { event.preventDefault(); const form = new FormData(event.currentTarget); const password = String(form.get("password")); if (password !== form.get("confirm")) return setError("Passwords do not match."); setBusy(true); try { await api.changePassword(password, role); onDone(); } catch (e) { setError(e instanceof Error ? e.message : "Unable to update password."); } finally { setBusy(false); } }; return <main className="boot-screen"><LockKeyhole size={32}/><h1>Create a new password</h1><p>Your temporary password cannot be used again after this step.</p><form className="login-form" onSubmit={submit}><label>New password<input name="password" type="password" minLength={10} required /></label><label>Confirm password<input name="confirm" type="password" minLength={10} required /></label>{error && <p className="form-error">{error}</p>}<button className="button button-primary button-full" disabled={busy}>Save secure password</button></form></main>; }

@@ -85,7 +85,7 @@ export function AdminOverview({
     <>
       <PageHeading
         eyebrow="Company command center"
-        title="Good morning, Marcella."
+        title="Here’s your forecasted projects."
         detail="Projects, field schedules, contracts, and decisions in one operating view."
         actions={
           <button
@@ -216,6 +216,7 @@ export function AdminProjects({
 }) {
   const [dialog, setDialog] = useState<DialogState>(null);
   const [busy, setBusy] = useState(false);
+  const canManageExisting = canCreate && data.viewer.role === "admin";
   // A client account can be created before its matching legacy client record
   // exists. Merge both sources so the assignment controls never hide that user.
   const assignableClients = Array.from(new Map([
@@ -314,7 +315,7 @@ export function AdminProjects({
                   <label><small>Stage</small><select aria-label={`Update stage for ${project.name}`} value={project.currentStage} disabled={busy} onChange={(event) => { const stage = stageOptions.find((item) => item.name === event.target.value)!; void submit(() => mutate(`/api/projects/${project.id}/progress`, "PATCH", { stage: stage.name, progress: stage.percent, override: true })); }}>{stageOptions.map((stage) => <option key={stage.name} value={stage.name}>{stage.name}</option>)}</select></label>
                   <label><small>Progress</small><select aria-label={`Update progress for ${project.name}`} value={project.progress} disabled={busy} onChange={(event) => void submit(() => mutate(`/api/projects/${project.id}/progress`, "PATCH", { stage: project.currentStage, progress: Number(event.target.value), override: true }))}>{progressOptions.map((progress) => <option key={progress} value={progress}>{progress}%</option>)}</select></label>
                 </div>
-                {canCreate && <ActionMenu className="project-menu" label="Project actions" items={[{ label: "Add job", onSelect: () => setDialog({ type: "job", project }) }, { label: "Edit project", onSelect: () => onOpenProject?.(project) }, { label: "Delete project", destructive: true, dividerBefore: true, onSelect: () => { if (window.confirm(`Delete ${project.name} and all of its jobs? This cannot be undone.`)) void submit(() => mutate(`/api/projects/${project.id}`, "DELETE")); } }]} />}
+                {canManageExisting && <ActionMenu className="project-menu" label="Project actions" items={[{ label: "Add job", onSelect: () => setDialog({ type: "job", project }) }, { label: "Edit project", onSelect: () => onOpenProject?.(project) }, { label: "Delete project", destructive: true, dividerBefore: true, onSelect: () => { if (window.confirm(`Delete ${project.name} and all of its jobs? This cannot be undone.`)) void submit(() => mutate(`/api/projects/${project.id}`, "DELETE")); } }]} />}
               </header>
             </section>
           );
