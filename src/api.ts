@@ -45,7 +45,11 @@ async function request<T>(path: string, role: Role, init?: RequestInit): Promise
     },
   });
   const body = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(body.message || "The request could not be completed.");
+  if (!response.ok) {
+    const error = new Error(body.message || "The request could not be completed.") as Error & { status?: number };
+    error.status = response.status;
+    throw error;
+  }
   return body as T;
 }
 

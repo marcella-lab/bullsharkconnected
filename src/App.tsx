@@ -51,6 +51,17 @@ export function App() {
       setError("");
     } catch (requestError) {
       if (refreshId !== latestRefresh.current) return;
+      // Railway deploys restart the server's in-memory session list.  A saved
+      // browser token is therefore no longer valid after a deployment; return
+      // people to the normal sign-in screen instead of a dead-end error page.
+      if ((requestError as { status?: number })?.status === 401) {
+        clearSessionToken();
+        setPreview(null);
+        setSessionRole(null);
+        setData(null);
+        setError("");
+        return;
+      }
       setError(requestError instanceof Error ? requestError.message : "Unable to load the portal.");
     }
   }, []);
