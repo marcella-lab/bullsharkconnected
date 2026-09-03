@@ -693,18 +693,30 @@ export function SubPayRequests({
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [fileError, setFileError] = useState("");
-  const jobs = data.jobs.filter((job) => job.contractorId === data.viewer.id);
+  const assignedJobIds = new Set(
+    data.users?.find((user) => user.id === data.viewer.id)?.jobIds || [],
+  );
+  const jobs = data.jobs
+    .filter((job) => assignedJobIds.has(job.id))
+    .sort((a, b) => (a.scheduleStart || "9999-12-31").localeCompare(b.scheduleStart || "9999-12-31"));
   const openInvoice = (request: PayRequest) => {
     setFileError("");
     void api.openPayRequestFile(request.id, request.invoice.id, "subcontractor").catch((error) => setFileError(error instanceof Error ? error.message : "Unable to open the invoice file."));
   };
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    setFileError("");
     const f = new FormData(event.currentTarget);
     const invoice = f.get("invoice") as File;
-    if (!invoice?.size) return;
     const job = data.jobs.find((item) => item.id === f.get("jobId"));
-    if (!job) return;
+    if (!job || !assignedJobIds.has(job.id)) {
+      setFileError("Choose one of your assigned jobs before submitting.");
+      return;
+    }
+    if (!invoice?.size) {
+      setFileError("Choose an invoice file before submitting your request.");
+      return;
+    }
     setBusy(true);
     try {
       await mutate("/api/pay-requests", "POST", {
@@ -722,6 +734,8 @@ export function SubPayRequests({
         attachments: [],
       });
       setOpen(false);
+    } catch (error) {
+      setFileError(error instanceof Error ? error.message : "Unable to submit the pay request. Please try again.");
     } finally {
       setBusy(false);
     }
@@ -788,7 +802,7 @@ export function SubPayRequests({
                 <option value="">Select job</option>
                 {jobs.map((job) => (
                   <option key={job.id} value={job.id}>
-                    {job.title}
+                    {job.title}{job.scheduleStart ? ` — ${dateLabel(job.scheduleStart)}` : ""}
                   </option>
                 ))}
               </select>
@@ -819,6 +833,7 @@ export function SubPayRequests({
             <Field label="Notes">
               <textarea name="description" rows={4} />
             </Field>
+            {fileError && <p className="form-error" style={{ gridColumn: "1 / -1" }} role="alert">{fileError}</p>}
             <div className="form-actions">
               <button
                 className="button button-ghost"
