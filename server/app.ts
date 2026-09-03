@@ -220,9 +220,9 @@ export function createApp(store: DataStore, esign: EsignService = new Configured
   app.get("/api/bootstrap", asyncRoute(async (req, res) => {
     const all = await store.read();
     const data = filteredData(all, req.viewer.role, req.viewer.id);
-    const name = req.viewer.role === "admin" || req.viewer.role === "project_manager"
-      ? "Marcella Johnson"
-      : data.clients[0]?.name || data.contractors[0]?.name || "Portal user";
+    // Use the authenticated account, rather than the first visible client or
+    // contractor record, so the sidebar always identifies the signed-in user.
+    const name = userById(all, req.viewer.id)?.name || "Portal user";
     const payload: BootstrapPayload = { ...data, users: data.users?.map(({ passwordHash, ...user }) => ({ ...user, passwordHash: "" })), viewer: { ...req.viewer, name } };
     res.json(payload);
   }));
