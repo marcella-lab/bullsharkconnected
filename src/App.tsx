@@ -128,7 +128,7 @@ export function App() {
     else if (view === "financials") page = <FinancePage data={data} mutate={mutate} />;
     else if (view === "suppliers") page = <SuppliersPage data={data} />;
     else if (view === "spending" && role === "admin") page = <SpendingPage data={data} mutate={mutate} />;
-    else if (view === "schedule") page = <AdminSchedule data={data} mutate={mutate} />;
+    else if (view === "schedule") page = <AdminSchedule data={data} mutate={mutate} onOpenProject={(project) => setDetail({ type: "project", id: project.id })} />;
     else if (view === "contracts") page = <AdminContracts data={data} mutate={mutate} />;
     else if (view === "interests") page = <AdminInterests data={data} />;
     else if (view === "potential") page = <AdminPotentialJobs data={data} mutate={mutate} />;

@@ -860,9 +860,11 @@ function AssignmentModal({
 export function AdminSchedule({
   data,
   mutate,
+  onOpenProject,
 }: {
   data: BootstrapPayload;
   mutate: Mutation;
+  onOpenProject?: (project: Project) => void;
 }) {
   const [job, setJob] = useState<Job | null>(null);
   const [busy, setBusy] = useState(false);
@@ -918,6 +920,7 @@ export function AdminSchedule({
                   </small>
                   <small className="schedule-address"><MapPin size={13} /> {data.projects.find((project) => project.id === item.projectId)?.address || item.location || "Address not set"}</small>
                 </span>
+                <button className="button button-small" onClick={() => { const project = data.projects.find((entry) => entry.id === item.projectId); if (project) onOpenProject?.(project); }}>Open project</button>
                 <StatusPill tone={toneForStatus(item.status)}>
                   {item.status.replaceAll("_", " ")}
                 </StatusPill>
