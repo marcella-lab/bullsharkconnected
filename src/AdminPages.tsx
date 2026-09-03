@@ -27,9 +27,9 @@ import {
   Modal,
   PageHeading,
   ProgressBar,
+  ProjectStatusStrip,
   StatusPill,
   SubmitButton,
-  WorkStatusStrip,
   YardageReferenceSheet,
 } from "./components";
 import type {
@@ -96,7 +96,7 @@ export function AdminOverview({
           </button>
         }
       />
-      <WorkStatusStrip jobs={data.jobs} />
+      <ProjectStatusStrip projects={data.projects} jobs={data.jobs} />
       <section className="metric-grid">
         <article className="metric-card">
           <span>Active projects</span>
@@ -290,7 +290,7 @@ export function AdminProjects({
           </select>
         </label>
       </div>
-      <WorkStatusStrip jobs={data.jobs} />
+      <ProjectStatusStrip projects={data.projects} jobs={data.jobs} />
       <div className="project-stack" aria-label="Project priority board">
         {visibleProjects.map((project) => {
           const jobs = data.jobs.filter((job) => job.projectId === project.id);

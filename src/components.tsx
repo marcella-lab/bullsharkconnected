@@ -45,6 +45,36 @@ export function WorkStatusStrip({ jobs }: { jobs: Job[] }) {
   );
 }
 
+/** Project-level status summary used by the Projects & jobs board.  It keeps
+ * the dashboard aligned with each project's quick-update status, rather than
+ * counting the individual jobs inside those projects. */
+export function ProjectStatusStrip({ projects, jobs }: { projects: Project[]; jobs: Job[] }) {
+  const statusFor = (project: Project) => project.workStatus
+    || (project.status === "complete" ? "completed"
+      : project.status === "on_hold" ? "lost"
+        : jobs.some((job) => job.projectId === project.id && job.status === "in_progress") ? "in_progress"
+          : jobs.some((job) => job.projectId === project.id && job.status === "scheduled") ? "scheduled"
+            : "new");
+  const statuses = [
+    { label: "New", value: projects.filter((project) => statusFor(project) === "new").length, tone: "new" },
+    { label: "Lost", value: projects.filter((project) => statusFor(project) === "lost").length, tone: "lost" },
+    { label: "Scheduled", value: projects.filter((project) => statusFor(project) === "scheduled").length, tone: "scheduled" },
+    { label: "In progress", value: projects.filter((project) => statusFor(project) === "in_progress").length, tone: "progress" },
+    { label: "Completed", value: projects.filter((project) => statusFor(project) === "completed").length, tone: "complete" },
+  ];
+  return (
+    <section className="work-status-strip" aria-label="Project status overview">
+      {statuses.map((status) => (
+        <article className={`work-status-card work-status-${status.tone}`} key={status.label}>
+          <span>{status.label}</span>
+          <strong>{status.value}</strong>
+          <small>projects</small>
+        </article>
+      ))}
+    </section>
+  );
+}
+
 export function YardageReferenceSheet({ project, rows }: { project: Project; rows: YardageRow[] }) {
   const row = rows.find((item) => item.projectId === project.id);
   if (!row) return null;
