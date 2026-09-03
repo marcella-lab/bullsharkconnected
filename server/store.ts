@@ -131,6 +131,14 @@ async function migrate(data: PortalData) {
       changed = true;
     }
   }
+  // Subcontractor portal users need a matching contractor directory record:
+  // assignments are made from that directory, while the portal uses the user.
+  for (const user of data.users.filter((item) => item.role === "subcontractor")) {
+    if (!data.contractors.some((contractor) => contractor.id === user.id || contractor.email.toLowerCase() === user.email.toLowerCase())) {
+      data.contractors.push({ id: user.id, name: user.name, email: user.email, phone: user.phone, company: user.company || user.name, trade: user.trade || "General" });
+      changed = true;
+    }
+  }
   // Remove gallery records for photos that no longer have a file on disk. This
   // keeps users from seeing a permanent "Loading photo" tile after an old upload.
   const availableFiles = [];

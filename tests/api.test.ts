@@ -115,6 +115,9 @@ describe("BullShark portal API", () => {
     expect(edited.status).toBe(200);
     expect(edited.body.clientId).toBe("client-2");
     expect(edited.body.contractorId).toBe("contractor-2");
+    const subcontractorView = await request(app).get("/api/bootstrap").set(headers("subcontractor", "contractor-2"));
+    expect(subcontractorView.body.jobs.map((job: { id: string }) => job.id)).toContain("job-1");
+    expect(subcontractorView.body.users[0].jobIds).toContain("job-1");
     const denied = await request(app).delete("/api/jobs/job-1").set(headers("client", "client-1"));
     expect(denied.status).toBe(403);
   });

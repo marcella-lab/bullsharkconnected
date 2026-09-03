@@ -71,7 +71,10 @@ function InfoPage({ eyebrow, title, detail, icon }: { eyebrow: string; title: st
 }
 
 export function SubcontractorPages({ data, view, mutate, onOpenProject, onOpenJob }: { data: BootstrapPayload; view: string; mutate: Mutation; onOpenProject?: (project: import("./types").Project) => void; onOpenJob?: (job: Job) => void }) {
-  const assigned = data.jobs.filter((job) => job.contractorId === data.viewer.id);
+  // The server includes the viewer's job IDs for both older contractor
+  // records and newly created subcontractor accounts.
+  const assignedJobIds = new Set(data.users?.find((user) => user.id === data.viewer.id)?.jobIds || []);
+  const assigned = data.jobs.filter((job) => assignedJobIds.has(job.id));
   const potential = data.jobs.filter((job) => job.interestOpen);
   const scheduled = assigned.filter((job) => job.scheduleStart).sort((a, b) => (a.scheduleStart || "").localeCompare(b.scheduleStart || ""));
   if (view === "jobs") return <SubJobs data={data} jobs={assigned} onOpenProject={onOpenProject} onOpenJob={onOpenJob} />;

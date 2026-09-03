@@ -59,7 +59,7 @@ const notify = (data: PortalData, userId: string, type: string, title: string, d
 };
 
 const notifyJobParticipants = (data: PortalData, job: Job, title: string, detail: string) => {
-  new Set([job.clientId, job.contractorId].filter((value): value is string => Boolean(value))).forEach((userId) => notify(data, userId, "job", title, detail, "jobs", "high"));
+  new Set([job.clientId, ...subcontractorUsersFor(data, job.contractorId).map((user) => user.id)].filter((value): value is string => Boolean(value))).forEach((userId) => notify(data, userId, "job", title, detail, "jobs", "high"));
 };
 
 const canAccessPotentialFile = (data: PortalData, user: PortalUser | undefined, fileId: string) => Boolean(user?.role === "subcontractor" && data.potentialJobs?.some((item) => item.status === "open" && item.fileIds.includes(fileId) && (item.visibleTo === "all" || (item.visibleTo === "trade" && item.trade.toLowerCase() === user.trade?.toLowerCase()) || item.contractorIds.includes(user.id))));
@@ -72,6 +72,11 @@ const fileAudienceIncludes = (visibility: FileVisibility, role: Role) => {
 };
 
 const userById = (data: PortalData, idValue: string) => data.users!.find((user) => user.id === idValue);
+const subcontractorUsersFor = (data: PortalData, contractorId?: string) => {
+  const contractor = data.contractors.find((item) => item.id === contractorId);
+  return (data.users || []).filter((user) => user.role === "subcontractor" && (user.id === contractorId || Boolean(contractor && user.email.toLowerCase() === contractor.email.toLowerCase())));
+};
+const jobIsAssignedTo = (data: PortalData, user: PortalUser | undefined, job: Job) => Boolean(user && (user.jobIds.includes(job.id) || subcontractorUsersFor(data, job.contractorId).some((account) => account.id === user.id)));
 const parsePair = (value: string, label: string) => { const match = value.trim().match(/^(\d+(?:\.\d+)?)\s*x\s*(\d+(?:\.\d+)?)$/i); if (!match) throw Object.assign(new Error(label === "footer size" ? "Enter footer size as Width x Depth (example: 18x24)." : "Enter dimensions as Length x Width (example: 60x40)."), { status: 400 }); return [Number(match[1]), Number(match[2])] as const; };
 const calculateYardage = (input: { dimensions: string; thickness: number; footers: string; additionalConcreteYardage?: number; wasteOverageYardage?: number }) => {
   const [length, width] = parsePair(input.dimensions, "dimensions"); const [footerWidth, footerDepth] = parsePair(input.footers, "footer size");
@@ -118,7 +123,8 @@ const filteredData = (data: PortalData, role: Role, viewerId: string): PortalDat
       notifications: data.notifications?.filter((notice) => notice.userId === viewerId),
     };
   }
-  const assigned = data.jobs.filter((job) => job.contractorId === viewerId || userById(data, viewerId)?.jobIds.includes(job.id));
+  const viewer = userById(data, viewerId);
+  const assigned = data.jobs.filter((job) => jobIsAssignedTo(data, viewer, job));
   const potential = data.jobs.filter((job) => job.interestOpen);
   const visiblePotentialJobs = data.potentialJobs?.filter((item) => item.status === "open" && (item.visibleTo === "all" || (item.visibleTo === "trade" && data.contractors.find((contractor) => contractor.id === viewerId)?.trade.toLowerCase() === item.trade.toLowerCase()) || item.contractorIds.includes(viewerId))) || [];
   const potentialFileIds = new Set(visiblePotentialJobs.flatMap((item) => item.fileIds));
@@ -129,13 +135,13 @@ const filteredData = (data: PortalData, role: Role, viewerId: string): PortalDat
     ...data,
     settings: { ...data.settings, contractTemplate: "" },
     clients: [],
-    contractors: data.contractors.filter((contractor) => contractor.id === viewerId),
+    contractors: data.contractors.filter((contractor) => subcontractorUsersFor(data, contractor.id).some((user) => user.id === viewerId)),
     projects: data.projects.filter((project) => projectIds.has(project.id)),
     jobs,
     contracts: data.contracts.filter((contract) => contract.contractorId === viewerId),
     interests: data.interests.filter((interest) => interest.contractorId === viewerId),
     audit: [],
-    users: data.users?.filter((user) => user.id === viewerId).map(({ passwordHash, ...user }) => ({ ...user, passwordHash: "" })),
+    users: data.users?.filter((user) => user.id === viewerId).map(({ passwordHash, ...user }) => ({ ...user, jobIds: [...new Set([...user.jobIds, ...assigned.map((job) => job.id)])], projectIds: [...new Set([...user.projectIds, ...assigned.map((job) => job.projectId)])], passwordHash: "" })),
     files: data.files?.filter((file) => potentialFileIds.has(file.id) || (projectIds.has(file.projectId) && fileAudienceIncludes(file.visibility, "subcontractor") && (file.visibility === "project_access" || file.jobIds.length === 0 || file.jobIds.some((jobId) => assigned.some((job) => job.id === jobId))))),
     payRequests: data.payRequests?.filter((item) => item.subcontractorId === viewerId), clientInvoices: [], projectInvoiceLogs: (data.projectInvoiceLogs || []).filter((item) => projectIds.has(item.projectId)), projectExpenses: [],
     potentialJobs: visiblePotentialJobs,
