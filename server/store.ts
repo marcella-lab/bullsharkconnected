@@ -1,5 +1,5 @@
-import { access, mkdir, readFile, rename, writeFile } from "node:fs/promises";
-import { dirname } from "node:path";
+import { access, copyFile, mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { basename, dirname, join } from "node:path";
 import type { PortalData } from "../src/types.js";
 import { seedData } from "./seed.js";
 import { hashPassword, temporaryPassword } from "./security.js";
@@ -14,7 +14,7 @@ const clone = <T>(value: T): T => structuredClone(value);
 export class JsonDataStore implements DataStore {
   private queue: Promise<unknown> = Promise.resolve();
 
-  constructor(private readonly path: string) {}
+  constructor(private readonly path: string, private readonly allowSeedOnMissing = true) {}
 
   async read() {
     try {
@@ -23,6 +23,9 @@ export class JsonDataStore implements DataStore {
       return data;
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+      if (!this.allowSeedOnMissing) {
+        throw Object.assign(new Error("The live portal data file is unavailable. Refusing to create blank replacement data."), { status: 503 });
+      }
       await this.persist(seedData);
       return clone(seedData);
     }
@@ -41,6 +44,16 @@ export class JsonDataStore implements DataStore {
 
   private async persist(data: PortalData) {
     await mkdir(dirname(this.path), { recursive: true });
+    // Keep a recoverable copy before every write. A user or password action
+    // can never be allowed to turn unavailable data into a blank dataset.
+    try {
+      const backupDirectory = join(dirname(this.path), "backups");
+      await mkdir(backupDirectory, { recursive: true });
+      const safeTime = new Date().toISOString().replace(/[:.]/g, "-");
+      await copyFile(this.path, join(backupDirectory, `${basename(this.path)}.${safeTime}.bak`));
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    }
     const tempPath = `${this.path}.tmp`;
     await writeFile(tempPath, JSON.stringify(data, null, 2), "utf8");
     await rename(tempPath, this.path);

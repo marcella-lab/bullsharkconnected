@@ -10,7 +10,10 @@ const root = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const dataPath = process.env.DATA_PATH
   ? resolve(process.env.DATA_PATH)
   : resolve(root, "data", "portal.json");
-const app = createApp(new JsonDataStore(dataPath));
+// A configured DATA_PATH is the production data store. Never silently replace
+// a missing mounted file with demo data; an operator can explicitly opt in for
+// a brand-new install with ALLOW_SEED_DATA=true.
+const app = createApp(new JsonDataStore(dataPath, !process.env.DATA_PATH || process.env.ALLOW_SEED_DATA === "true"));
 const clientPath = resolve(root, "dist");
 
 if (existsSync(clientPath)) {

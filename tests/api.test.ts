@@ -151,6 +151,18 @@ describe("BullShark portal API", () => {
     expect((await request(app).patch("/api/projects/order").set(headers("client", "client-1")).send({ projectIds: reversed })).status).toBe(403);
   });
 
+  it("never removes operational records when a user is deleted or their password is reset", async () => {
+    const app = createApp(new MemoryDataStore());
+    const before = await request(app).get("/api/bootstrap").set(headers("admin", "admin-1"));
+    expect((await request(app).post("/api/users/client-1/reset-password").set(headers("admin", "admin-1")).send({})).status).toBe(200);
+    expect((await request(app).delete("/api/users/contractor-1").set(headers("admin", "admin-1"))).status).toBe(200);
+    const after = await request(app).get("/api/bootstrap").set(headers("admin", "admin-1"));
+    expect(after.body.projects).toHaveLength(before.body.projects.length);
+    expect(after.body.jobs).toHaveLength(before.body.jobs.length);
+    expect(after.body.files).toHaveLength(before.body.files.length);
+    expect(after.body.projectExpenses).toHaveLength(before.body.projectExpenses.length);
+  });
+
   it("lets clients manage only their own project files while admins retain full control", async () => {
     const app = createApp(new MemoryDataStore());
     const clientFile = await request(app).post("/api/files").set(headers("client", "client-1")).send({ projectId: "project-1", jobIds: [], name: "Client photo.jpg", mimeType: "image/jpeg", contentBase64: Buffer.from("client image").toString("base64"), category: "Photos", description: "Client upload", visibility: "client" });
