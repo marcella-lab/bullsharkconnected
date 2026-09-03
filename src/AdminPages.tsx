@@ -916,6 +916,7 @@ export function AdminSchedule({
                   <small>
                     {item.number} · {item.contractorName || "Crew unassigned"}
                   </small>
+                  <small className="schedule-address"><MapPin size={13} /> {data.projects.find((project) => project.id === item.projectId)?.address || item.location || "Address not set"}</small>
                 </span>
                 <StatusPill tone={toneForStatus(item.status)}>
                   {item.status.replaceAll("_", " ")}
