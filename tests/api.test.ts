@@ -115,6 +115,8 @@ describe("BullShark portal API", () => {
     expect(edited.status).toBe(200);
     expect(edited.body.clientId).toBe("client-2");
     expect(edited.body.contractorId).toBe("contractor-2");
+    const access = await request(app).patch("/api/jobs/job-1/access").set(headers("admin", "admin-1")).send({ userIds: [] });
+    expect(access.status).toBe(200);
     const subcontractorView = await request(app).get("/api/bootstrap").set(headers("subcontractor", "contractor-2"));
     expect(subcontractorView.body.jobs.map((job: { id: string }) => job.id)).toContain("job-1");
     expect(subcontractorView.body.users[0].jobIds).toContain("job-1");
