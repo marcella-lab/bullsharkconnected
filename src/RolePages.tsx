@@ -47,6 +47,7 @@ function ClientOverview({ data }: { data: BootstrapPayload }) {
         const photoCount = sharedFiles.filter(isPhotoFile).length;
         const scheduled = data.jobs.filter((job) => job.projectId === project.id && job.scheduleStart).sort((a, b) => (a.scheduleStart || "").localeCompare(b.scheduleStart || ""));
         const nextScheduled = scheduled.find((job) => (job.scheduleEnd || job.scheduleStart || "") >= today) || scheduled[0];
+        const completedJobs = data.jobs.filter((job) => job.projectId === project.id && (job.status === "complete" || job.progress === 100));
         return <section className="project-card client-project" key={project.id}>
           <header>
             <div className="project-identity"><span className="project-code">{project.number}</span><h2>{project.name}</h2><p><MapPin size={14} /> {project.address}</p></div>
@@ -57,6 +58,7 @@ function ClientOverview({ data }: { data: BootstrapPayload }) {
               <button className="button button-secondary" onClick={() => setSelected(project)}>View shared photos & files</button>
             </div>
           </header>
+          <div className="client-completed-work"><CheckCircle2 size={16}/><span><small>Completed work</small><strong>{completedJobs.length ? completedJobs.map((job) => `${job.title} done`).join(" · ") : "No completed work recorded yet"}</strong></span></div>
           <div className="client-next-schedule"><CalendarDays size={16}/><span><small>Next on schedule</small><strong>{nextScheduled ? `${nextScheduled.title} · ${dateLabel(nextScheduled.scheduleStart)}` : "No work dates published yet"}</strong></span></div>
         </section>;
       })}</section>
