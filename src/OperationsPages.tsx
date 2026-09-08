@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import { api } from "./api";
+import { isPhotoFile, isPhotoUpload } from "./fileUtils";
 import {
   currency,
   ActionMenu,
@@ -968,12 +969,12 @@ export function ProjectFilesModal({
     );
   const openPreview = async (file: (typeof files)[number]) => {
     if (preview) URL.revokeObjectURL(preview.url);
-    setPreview({ name: file.name, mimeType: file.mimeType, url: await api.previewFile(file.id, role) });
+    setPreview({ name: file.name, mimeType: isPhotoFile(file) ? "image/jpeg" : file.mimeType, url: await api.previewFile(file.id, role) });
   };
   useEffect(() => {
     let cancelled = false;
     const urls: string[] = [];
-    const images = files.filter((file) => file.mimeType.startsWith("image/"));
+    const images = files.filter(isPhotoFile);
     void Promise.allSettled(
       images.map(async (file) => {
         const url = await api.previewFile(file.id, role);
@@ -1038,19 +1039,19 @@ export function ProjectFilesModal({
             projectId: project.id,
             jobIds,
             name: file.name,
-            mimeType: file.type || "application/octet-stream",
+            mimeType: file.type || (isPhotoUpload(file) ? "image/jpeg" : "application/octet-stream"),
             contentBase64: await encode(file),
             category: blueprintMode
               ? "Plans"
-              : file.type.startsWith("image/")
+              : isPhotoUpload(file)
                 ? "Photos"
                 : "Other",
             description: form.get("description"),
-            captureDate: file.type.startsWith("image/")
+            captureDate: isPhotoUpload(file)
               ? form.get("captureDate")
               : "",
-            geoLatitude: file.type.startsWith("image/") ? gps.lat : undefined,
-            geoLongitude: file.type.startsWith("image/") ? gps.lng : undefined,
+            geoLatitude: isPhotoUpload(file) ? gps.lat : undefined,
+            geoLongitude: isPhotoUpload(file) ? gps.lng : undefined,
             visibility: form.get("visibility"),
           }),
         ),
@@ -1103,9 +1104,9 @@ export function ProjectFilesModal({
     } catch (error) { setUploadError(error instanceof Error ? error.message : "Unable to update this file."); }
     finally { setBusy(false); }
   };
-  const images = files.filter((file) => file.mimeType.startsWith("image/"));
+  const images = files.filter(isPhotoFile);
   const otherFiles = files.filter(
-    (file) => !file.mimeType.startsWith("image/"),
+    (file) => !isPhotoFile(file),
   );
   return (
     <Modal
@@ -1239,7 +1240,7 @@ export function ProjectFilesModal({
         </section>
       )}
       {editing && <form className="form-grid file-edit-form" onSubmit={saveEdit}>
-        <div className="callout callout-accent"><FileText size={18}/><span><strong>Edit {editing.mimeType.startsWith("image/") ? "photo" : "file"}</strong><small>Only the person who uploaded this item, or an Admin, can make changes.</small></span></div>
+        <div className="callout callout-accent"><FileText size={18}/><span><strong>Edit {isPhotoFile(editing) ? "photo" : "file"}</strong><small>Only the person who uploaded this item, or an Admin, can make changes.</small></span></div>
         <Field label="File name"><input name="name" required defaultValue={editing.name}/></Field>
         <Field label="Category"><input name="category" defaultValue={editing.category || ""}/></Field>
         <Field label="Description"><input name="description" defaultValue={editing.description || ""}/></Field>
