@@ -109,6 +109,19 @@ describe("BullShark portal API", () => {
     expect(created.body.finalOrderYardage).toBeCloseTo(70.1666, 3);
     expect(created.body.concreteCost + created.body.subCost).toBe(26600);
     expect(created.body.contractCost - created.body.concreteCost - created.body.subCost).toBe(5400);
+    const twoZone = await request(app).post("/api/yardage").set(headers("admin", "admin-1")).send({
+      status: "ACTIVE", state: "TX", concreteCompany: "Cemex", client: "Two zone slab",
+      dimensions: "50x30", thickness: 6, secondaryDimensions: "20x30", secondaryThickness: 4,
+      footers: "12x12", additionalConcreteYardage: 0, wasteOverageYardage: 0,
+    });
+    expect(twoZone.status).toBe(201);
+    expect(twoZone.body.slabSquareFeet).toBe(1500);
+    expect(twoZone.body.secondaryAreaYardage).toBeCloseTo(7.4074, 3);
+    expect(twoZone.body.slabYardage).toBeCloseTo(24.074, 3);
+    expect(twoZone.body.footerYardage).toBeCloseTo(5.9259, 3);
+    expect(twoZone.body.totalYardage).toBeCloseTo(30, 3);
+    const invalidSecondary = await request(app).post("/api/yardage").set(headers("admin", "admin-1")).send({ status: "ACTIVE", state: "TX", concreteCompany: "Cemex", client: "Invalid slab", dimensions: "50x30", thickness: 6, secondaryDimensions: "60x30", secondaryThickness: 4, footers: "12x12" });
+    expect(invalidSecondary.status).toBe(400);
     const denied = await request(app).get("/api/yardage").set(headers("client", "client-1"));
     expect(denied.status).toBe(403);
   });

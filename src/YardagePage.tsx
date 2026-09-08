@@ -42,6 +42,24 @@ const blank: Draft = {
   notes: "",
 };
 const cy = (n: number) => `${(n || 0).toFixed(2)} CY`;
+const dimensionPair = (value: string) => {
+  const match = value.trim().match(/^(\d+(?:\.\d+)?)\s*x\s*(\d+(?:\.\d+)?)$/i);
+  return match ? [Number(match[1]), Number(match[2])] as const : null;
+};
+const previewYardage = (draft: Draft) => {
+  const primary = dimensionPair(draft.dimensions);
+  const footer = dimensionPair(draft.footers);
+  const secondary = draft.secondaryDimensions.trim() ? dimensionPair(draft.secondaryDimensions) : null;
+  if (!primary || !footer || !(draft.thickness > 0)) return null;
+  const totalSquareFeet = primary[0] * primary[1];
+  const secondarySquareFeet = secondary ? secondary[0] * secondary[1] : 0;
+  if (secondarySquareFeet > totalSquareFeet) return { error: "Secondary area cannot exceed the total slab area." };
+  if (draft.secondaryDimensions.trim() && !(draft.secondaryThickness > 0)) return { error: "Enter a secondary thickness greater than zero." };
+  const slab = ((totalSquareFeet - secondarySquareFeet) * draft.thickness) / 324 + (secondarySquareFeet * draft.secondaryThickness) / 324;
+  const footerYardage = ((2 * (primary[0] + primary[1])) * (footer[0] / 12) * (footer[1] / 12)) / 27;
+  const total = slab + footerYardage;
+  return { slab, footerYardage, total, final: total + draft.additionalConcreteYardage + draft.wasteOverageYardage };
+};
 const heads = [
   "Status",
   "State",
@@ -51,7 +69,7 @@ const heads = [
   "Thickness",
   "Secondary dimensions",
   "Secondary thickness",
-  "Thickness increase CY",
+  "Secondary Area CY",
   "Footers",
   "Slab Square Feet",
   "Slab CY",
@@ -72,12 +90,14 @@ export function YardagePage({
   const [rows, setRows] = useState<YardageRow[]>(data.yardageRows || []),
     [draft, setDraft] = useState<Draft>(blank),
     [editing, setEditing] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState("");
   const [search, setSearch] = useState(""),
     [status, setStatus] = useState("ALL"),
     [state, setState] = useState("ALL"),
     [sort, setSort] = useState("client");
   const put = <K extends keyof Draft>(key: K, value: Draft[K]) =>
     setDraft((old) => ({ ...old, [key]: value }));
+  const liveEstimate = useMemo(() => previewYardage(draft), [draft]);
   const active = rows.filter((r) => r.status === "ACTIVE");
   const shown = useMemo(
     () =>
@@ -107,16 +127,17 @@ export function YardagePage({
   );
   const save = async (e: FormEvent) => {
     e.preventDefault();
-    const row = await mutate<YardageRow>(
-      editing ? `/api/yardage/${editing}` : "/api/yardage",
-      editing ? "PATCH" : "POST",
-      draft,
-    );
-    setRows((old) =>
-      editing ? old.map((r) => (r.id === row.id ? row : r)) : [row, ...old],
-    );
-    setDraft(blank);
-    setEditing(null);
+    setSaveError("");
+    try {
+      const row = await mutate<YardageRow>(
+        editing ? `/api/yardage/${editing}` : "/api/yardage",
+        editing ? "PATCH" : "POST",
+        draft,
+      );
+      setRows((old) => editing ? old.map((r) => (r.id === row.id ? row : r)) : [row, ...old]);
+      setDraft(blank);
+      setEditing(null);
+    } catch (error) { setSaveError(error instanceof Error ? error.message : "Unable to save this calculator row."); }
   };
   const edit = (r: YardageRow) => {
     setEditing(r.id);
@@ -160,7 +181,7 @@ export function YardagePage({
       r.thickness,
       r.secondaryDimensions,
       r.secondaryThickness,
-      r.secondaryThicknessYardage,
+      r.secondaryAreaYardage,
       r.footers,
       r.slabSquareFeet,
       r.slabYardage,
@@ -301,11 +322,14 @@ export function YardagePage({
           <button className="button button-primary" type="submit">
             <Plus size={15} /> {editing ? "Save row" : "Add row"}
           </button>
+          {liveEstimate && ("error" in liveEstimate ? <p className="form-error">{liveEstimate.error}</p> : <p className="yardage-live-estimate">Live estimate: Slab <b>{cy(liveEstimate.slab)}</b> · Footers <b>{cy(liveEstimate.footerYardage)}</b> · Total <b>{cy(liveEstimate.total)}</b> · Final <b>{cy(liveEstimate.final)}</b></p>)}
+          {saveError && <p className="form-error">{saveError}</p>}
         </form>
         <p className="form-hint">
-          Slab CY = Length × Width × Thickness ÷ 324. For a second section of
-          the same job, enter its dimensions and thickness. The calculator adds
-          only the concrete increase between the two thicknesses to Final Order CY.
+          Enter the secondary area only when it sits inside the main slab. Its
+          square footage is removed from the primary area and calculated at its
+          own thickness. Final Order CY adds slab, footers, additional concrete,
+          and waste/overage.
         </p>
       </section>
       <section className="yardage-panel">
@@ -369,7 +393,7 @@ export function YardagePage({
                   <td>{r.thickness} in</td>
                   <td>{r.secondaryDimensions || "—"}</td>
                   <td>{r.secondaryThickness ? `${r.secondaryThickness} in` : "—"}</td>
-                  <td>{cy(r.secondaryThicknessYardage)}</td>
+                  <td>{cy(r.secondaryAreaYardage)}</td>
                   <td>{r.footers}</td>
                   <td>{r.slabSquareFeet.toFixed(2)}</td>
                   <td>{cy(r.slabYardage)}</td>
