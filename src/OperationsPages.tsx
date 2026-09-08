@@ -920,19 +920,22 @@ export function ProjectFilesModal({
   role,
   onClose,
   blueprintMode = false,
+  mediaMode = "all",
 }: {
   data: BootstrapPayload;
   project: Project;
   role: Role;
   onClose: () => void;
   blueprintMode?: boolean;
+  mediaMode?: "all" | "photos" | "files";
 }) {
+  const visibleProjectFiles = () => (data.files || []).filter((file) =>
+    file.projectId === project.id &&
+    (!blueprintMode || file.category === "Plans") &&
+    (mediaMode === "all" || (mediaMode === "photos" ? isPhotoFile(file) : !isPhotoFile(file))),
+  );
   const [files, setFiles] = useState(
-    (data.files || []).filter(
-      (file) =>
-        file.projectId === project.id &&
-        (!blueprintMode || file.category === "Plans"),
-    ),
+    visibleProjectFiles(),
   );
   const [busy, setBusy] = useState(false);
   const [uploadError, setUploadError] = useState("");
@@ -950,8 +953,8 @@ export function ProjectFilesModal({
   );
   const [editAudience, setEditAudience] = useState<FileVisibility>("admin");
   useEffect(() => {
-    setFiles((data.files || []).filter((file) => file.projectId === project.id && (!blueprintMode || file.category === "Plans")));
-  }, [blueprintMode, data.files, project.id]);
+    setFiles(visibleProjectFiles());
+  }, [blueprintMode, data.files, mediaMode, project.id]);
   const beginEdit = (file: PortalFile) => {
     setEditing(file);
     setEditAudience(
@@ -1021,6 +1024,14 @@ export function ProjectFilesModal({
         (value): value is File => value instanceof File && value.size > 0,
       );
     if (!selected.length) return;
+    if (mediaMode === "photos" && selected.some((file) => !isPhotoUpload(file))) {
+      setUploadError("Choose image files here. Upload documents from Project files instead.");
+      return;
+    }
+    if (mediaMode === "files" && selected.some(isPhotoUpload)) {
+      setUploadError("Photos belong in Project photos. Choose non-photo files here.");
+      return;
+    }
     setBusy(true);
     setUploadError("");
     try {
@@ -1043,15 +1054,17 @@ export function ProjectFilesModal({
             contentBase64: await encode(file),
             category: blueprintMode
               ? "Plans"
+              : mediaMode === "photos"
+                ? "Photos"
               : isPhotoUpload(file)
                 ? "Photos"
                 : "Other",
             description: form.get("description"),
-            captureDate: isPhotoUpload(file)
+            captureDate: (mediaMode === "photos" || isPhotoUpload(file))
               ? form.get("captureDate")
               : "",
-            geoLatitude: isPhotoUpload(file) ? gps.lat : undefined,
-            geoLongitude: isPhotoUpload(file) ? gps.lng : undefined,
+            geoLatitude: (mediaMode === "photos" || isPhotoUpload(file)) ? gps.lat : undefined,
+            geoLongitude: (mediaMode === "photos" || isPhotoUpload(file)) ? gps.lng : undefined,
             visibility: form.get("visibility"),
           }),
         ),
@@ -1110,8 +1123,8 @@ export function ProjectFilesModal({
   );
   return (
     <Modal
-      title={`${project.name} ${blueprintMode ? "plans & blueprints" : "files"}`}
-      eyebrow={`${files.length} available document${files.length === 1 ? "" : "s"}`}
+      title={`${project.name} ${blueprintMode ? "plans & blueprints" : mediaMode === "photos" ? "photos" : "files"}`}
+      eyebrow={`${files.length} available ${mediaMode === "photos" ? "photo" : "file"}${files.length === 1 ? "" : "s"}`}
       onClose={() => {
         if (preview) URL.revokeObjectURL(preview.url);
         onClose();
@@ -1126,25 +1139,29 @@ export function ProjectFilesModal({
               <strong>
                 {blueprintMode
                   ? "Upload blueprints & plans"
+                  : mediaMode === "photos"
+                    ? "Upload project photos"
                   : "Upload project files"}
               </strong>
               <small>
                 {blueprintMode
                   ? "Upload one or more plans or blueprint documents. Uploaded items appear below."
+                  : mediaMode === "photos"
+                    ? "Choose one or more photos. They will appear only in Project photos, not Project files."
                   : "Select one or more files of any type. Photos can include capture date and optional GPS mapping."}
               </small>
             </span>
           </div>
-          <Field label={blueprintMode ? "Plans / blueprints" : "Files"}>
-            <input name="files" type="file" multiple required />
+          <Field label={blueprintMode ? "Plans / blueprints" : mediaMode === "photos" ? "Photos" : "Files"}>
+            <input name="files" type="file" accept={mediaMode === "photos" ? "image/*,.heic,.heif" : undefined} multiple required />
           </Field>
-          <Field label="Photo capture date">
+          {(mediaMode === "photos" || mediaMode === "all") && <Field label="Photo capture date">
             <input
               name="captureDate"
               type="date"
               defaultValue={new Date().toISOString().slice(0, 10)}
             />
-          </Field>
+          </Field>}
           <Field label="Visible to">
             <select name="visibility" value={uploadAudience} onChange={(event) => setUploadAudience(event.target.value as FileVisibility)}>
               {role === "admin" ? (
@@ -1165,6 +1182,8 @@ export function ProjectFilesModal({
               placeholder={
                 blueprintMode
                   ? "Plan set, revision, drawing notes…"
+                  : mediaMode === "photos"
+                    ? "Photo description…"
                   : "Plans, photos, invoices, field notes…"
               }
             />
@@ -1175,19 +1194,19 @@ export function ProjectFilesModal({
             </p>
           )}
           <div className="form-actions">
-            <button
+            {(mediaMode === "photos" || mediaMode === "all") && <button
               type="button"
               className="button button-secondary"
               onClick={useLocation}
             >
               Use current GPS location
-            </button>
+            </button>}
             <small>
               {gps.lat !== undefined
                 ? `GPS saved: ${gps.lat.toFixed(5)}, ${gps.lng?.toFixed(5)}`
-                : "GPS is optional and is saved for image files only."}
+                : mediaMode === "photos" ? "GPS is optional and is saved with photo details." : "GPS is optional and is saved for image files only."}
             </small>
-            <SubmitButton busy={busy}>Upload selected files</SubmitButton>
+            <SubmitButton busy={busy}>Upload selected {mediaMode === "photos" ? "photos" : "files"}</SubmitButton>
           </div>
         </form>
       )}
@@ -1226,7 +1245,7 @@ export function ProjectFilesModal({
           </div>
         </section>
       )}
-      {!blueprintMode && otherFiles.length > 0 && (
+      {!blueprintMode && mediaMode !== "photos" && otherFiles.length > 0 && (
         <section className="file-list plan-file-list">
           <h3>Uploaded files</h3>
           <div className="plan-icons">
