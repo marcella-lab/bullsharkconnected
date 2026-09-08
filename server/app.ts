@@ -115,7 +115,17 @@ const filteredData = (data: PortalData, role: Role, viewerId: string): PortalDat
         ...project,
         milestones: (project.milestones || []).filter((milestone) => milestone.date >= isoNow().slice(0, 10)),
       })),
-      jobs: [],
+      // Clients receive only the schedule and completion details needed for
+      // their project updates. Pricing, subcontractor instructions, and
+      // internal assignment data remain private.
+      jobs: data.jobs.filter((job) => projectIds.has(job.projectId)).map((job) => ({
+        ...job,
+        scope: "",
+        price: 0,
+        contractorId: undefined,
+        contractorName: undefined,
+        subcontractorInstructions: undefined,
+      })),
       contracts: [],
       interests: [],
       audit: [],

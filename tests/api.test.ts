@@ -55,7 +55,10 @@ describe("BullShark portal API", () => {
     expect(response.body.projects).toHaveLength(1);
     expect(response.body.projects[0].clientId).toBe("client-1");
     expect(response.body.contracts).toEqual([]);
-    expect(response.body.jobs).toEqual([]);
+    expect(response.body.jobs).toEqual(expect.arrayContaining([
+      expect.objectContaining({ projectId: "project-1", price: 0, scope: "" }),
+    ]));
+    expect(response.body.jobs.every((job: { contractorId?: string; subcontractorInstructions?: string }) => !job.contractorId && !job.subcontractorInstructions)).toBe(true);
     expect(response.body.projects[0].milestones).toEqual(expect.any(Array));
   });
 
