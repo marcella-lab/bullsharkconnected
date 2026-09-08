@@ -159,5 +159,18 @@ async function migrate(data: PortalData) {
     { id: demoContractorId, role: "subcontractor" as const, name: "Demo Subcontractor", email: "demo.subcontractor@bullsharkconnected.org", company: "Demo Field Company", trade: "Concrete", projectIds: data.projects.slice(0, 1).map((project) => project.id), jobIds: data.jobs.slice(0, 1).map((job) => job.id) },
   ];
   for (const account of demoAccounts) if (!data.users.some((user) => user.id === account.id)) { data.users.push({ ...account, active: true, mustChangePassword: true, passwordHash: demoPasswordHash, notificationPreferences: {} }); changed = true; }
+  // One-time account recovery requested by the account owner. The marker is
+  // persisted with the portal data, so this can never reset anyone else or
+  // repeat on later deployments.
+  const recovery = data.settings as unknown as Record<string, unknown>;
+  if (recovery.marcellaPasswordRecovery !== "2026-09-08") {
+    const marcella = data.users.find((user) => user.email.toLowerCase() === "marcella@vipersteel.us");
+    if (marcella) {
+      marcella.passwordHash = await hashPassword(temporaryPassword);
+      marcella.mustChangePassword = true;
+      recovery.marcellaPasswordRecovery = "2026-09-08";
+      changed = true;
+    }
+  }
   return changed;
 }
