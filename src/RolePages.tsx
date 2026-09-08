@@ -33,6 +33,7 @@ export function ClientPages({ data, view }: { data: BootstrapPayload; view: stri
 
 function ClientOverview({ data }: { data: BootstrapPayload }) {
   const [selected, setSelected] = useState<BootstrapPayload["projects"][number] | null>(null);
+  const today = new Date().toISOString().slice(0, 10);
   const nextSteps = data.projects
     .flatMap((project) => (project.milestones || []).map((milestone) => ({ project, milestone })))
     .filter(({ milestone }) => milestone.date >= new Date().toISOString().slice(0, 10))
@@ -41,7 +42,24 @@ function ClientOverview({ data }: { data: BootstrapPayload }) {
     <PageHeading eyebrow="Client portal" title="Your project" detail="View your next steps and the project photos and files BullShark has shared with you." />
     {data.projects.length ? <>
       <section className="panel"><div className="panel-heading"><div><h2>Next steps</h2><p>Upcoming project milestones and reminders.</p></div></div>{nextSteps.length ? <div className="milestone-list">{nextSteps.map(({ project, milestone }) => <article key={milestone.id}><strong>{dateLabel(milestone.date)}</strong><span><b>{milestone.title}</b>{milestone.details && <small>{milestone.details}</small>}<small>{project.name}</small></span></article>)}</div> : <p className="panel-empty">No upcoming milestones have been shared yet.</p>}</section>
-      <section className="project-stack">{data.projects.map((project) => { const sharedFiles = (data.files || []).filter((file) => file.projectId === project.id); const photoCount = sharedFiles.filter(isPhotoFile).length; return <section className="project-card client-project" key={project.id}><header><div className="project-identity"><span className="project-code">{project.number}</span><h2>{project.name}</h2><p><MapPin size={14} /> {project.address}</p></div><div className="project-summary"><div><small>Shared photos</small><strong>{photoCount}</strong></div><div><small>Shared files</small><strong>{sharedFiles.length - photoCount}</strong></div><button className="button button-secondary" onClick={() => setSelected(project)}>View shared photos & files</button></div></header></section>; })}</section>
+      <section className="project-stack">{data.projects.map((project) => {
+        const sharedFiles = (data.files || []).filter((file) => file.projectId === project.id);
+        const photoCount = sharedFiles.filter(isPhotoFile).length;
+        const scheduled = data.jobs.filter((job) => job.projectId === project.id && job.scheduleStart).sort((a, b) => (a.scheduleStart || "").localeCompare(b.scheduleStart || ""));
+        const nextScheduled = scheduled.find((job) => (job.scheduleEnd || job.scheduleStart || "") >= today) || scheduled[0];
+        return <section className="project-card client-project" key={project.id}>
+          <header>
+            <div className="project-identity"><span className="project-code">{project.number}</span><h2>{project.name}</h2><p><MapPin size={14} /> {project.address}</p></div>
+            <div className="project-summary client-project-summary">
+              <div className="client-progress-wheel" style={{ background: `conic-gradient(#0a9db7 ${project.progress * 3.6}deg, #e4eef1 0deg)` }}><span><b>{project.progress}%</b><small>complete</small></span></div>
+              <div><small>Shared photos</small><strong>{photoCount}</strong></div>
+              <div><small>Shared files</small><strong>{sharedFiles.length - photoCount}</strong></div>
+              <button className="button button-secondary" onClick={() => setSelected(project)}>View shared photos & files</button>
+            </div>
+          </header>
+          <div className="client-next-schedule"><CalendarDays size={16}/><span><small>Next on schedule</small><strong>{nextScheduled ? `${nextScheduled.title} · ${dateLabel(nextScheduled.scheduleStart)}` : "No work dates published yet"}</strong></span></div>
+        </section>;
+      })}</section>
     </> : <EmptyState title="No project assigned" detail="BullShark will add your project when it is ready." />}
     {selected && <ProjectFilesModal data={data} project={selected} role="client" onClose={() => setSelected(null)} />}
   </>;
