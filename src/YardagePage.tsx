@@ -19,6 +19,7 @@ type Draft = Pick<
   | "projectId"
   | "dimensions"
   | "thickness"
+  | "secondaryThickness"
   | "footers"
   | "additionalConcreteYardage"
   | "wasteOverageYardage"
@@ -32,6 +33,7 @@ const blank: Draft = {
   projectId: "",
   dimensions: "",
   thickness: 6,
+  secondaryThickness: 0,
   footers: "",
   additionalConcreteYardage: 0,
   wasteOverageYardage: 0,
@@ -45,6 +47,8 @@ const heads = [
   "Client",
   "Dimensions",
   "Thickness",
+  "Secondary thickness",
+  "Thickness increase CY",
   "Footers",
   "Slab Square Feet",
   "Slab CY",
@@ -121,6 +125,7 @@ export function YardagePage({
       projectId: r.projectId || "",
       dimensions: r.dimensions,
       thickness: r.thickness,
+      secondaryThickness: r.secondaryThickness || 0,
       footers: r.footers,
       additionalConcreteYardage: r.additionalConcreteYardage || 0,
       wasteOverageYardage: r.wasteOverageYardage || 0,
@@ -149,6 +154,8 @@ export function YardagePage({
       r.client,
       r.dimensions,
       r.thickness,
+      r.secondaryThickness,
+      r.secondaryThicknessYardage,
       r.footers,
       r.slabSquareFeet,
       r.slabYardage,
@@ -264,6 +271,11 @@ export function YardagePage({
             value={draft.thickness}
             set={(v) => put("thickness", v)}
           />
+          <Num
+            label="Secondary thickness (in)"
+            value={draft.secondaryThickness}
+            set={(v) => put("secondaryThickness", v)}
+          />
           <input
             value={draft.footers}
             onChange={(e) => put("footers", e.target.value)}
@@ -285,8 +297,9 @@ export function YardagePage({
           </button>
         </form>
         <p className="form-hint">
-          Slab CY = Length × Width × Thickness ÷ 324. Final Order CY adds
-          additional concrete and waste/overage to Total CY.
+          Slab CY = Length × Width × Thickness ÷ 324. Add a secondary thickness
+          to calculate the extra concrete between the two thicknesses; that
+          amount is included in Final Order CY.
         </p>
       </section>
       <section className="yardage-panel">
@@ -348,6 +361,8 @@ export function YardagePage({
                   </td>
                   <td>{r.dimensions}</td>
                   <td>{r.thickness} in</td>
+                  <td>{r.secondaryThickness ? `${r.secondaryThickness} in` : "—"}</td>
+                  <td>{cy(r.secondaryThicknessYardage)}</td>
                   <td>{r.footers}</td>
                   <td>{r.slabSquareFeet.toFixed(2)}</td>
                   <td>{cy(r.slabYardage)}</td>
@@ -383,7 +398,7 @@ export function YardagePage({
               ))}
               {!shown.length && (
                 <tr>
-                  <td colSpan={15} className="empty-cell">
+                  <td colSpan={17} className="empty-cell">
                     No calculator rows match these filters. Add your first
                     project above.
                   </td>

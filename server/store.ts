@@ -97,6 +97,7 @@ async function migrate(data: PortalData) {
       const footerYardage = (2 * (length + width) * (footerWidth / 12) * (footerDepth / 12)) / 27;
       Object.assign(row, { length, width, footerWidth, footerDepth, slabSquareFeet, slabYardage, padYardage: slabYardage, footerYardage, totalYardage: slabYardage + footerYardage, additionalConcreteYardage: 0, wasteOverageYardage: 0, finalOrderYardage: slabYardage + footerYardage }); changed = true;
     }
+    if (row.secondaryThickness === undefined || row.secondaryThicknessYardage === undefined) { row.secondaryThickness = 0; row.secondaryThicknessYardage = 0; changed = true; }
   }
   for (const [index, project] of data.projects.entries()) {
     if (!project.milestones) { project.milestones = []; changed = true; }
