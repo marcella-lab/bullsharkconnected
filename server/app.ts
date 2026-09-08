@@ -113,7 +113,9 @@ const filteredData = (data: PortalData, role: Role, viewerId: string): PortalDat
       contractors: [],
       projects: projects.map(({ fieldNotes: _fieldNotes, ...project }) => ({
         ...project,
-        milestones: (project.milestones || []).filter((milestone) => milestone.date >= isoNow().slice(0, 10)),
+        // Milestones are a client-facing project update, so include the
+        // complete timeline rather than hiding completed milestones.
+        milestones: project.milestones || [],
       })),
       // Clients receive only the schedule and completion details needed for
       // their project updates. Pricing, subcontractor instructions, and
