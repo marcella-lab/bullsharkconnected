@@ -79,12 +79,12 @@ const subcontractorUsersFor = (data: PortalData, contractorId?: string) => {
 };
 const jobIsAssignedTo = (data: PortalData, user: PortalUser | undefined, job: Job) => Boolean(user && (user.jobIds.includes(job.id) || subcontractorUsersFor(data, job.contractorId).some((account) => account.id === user.id)));
 const parsePair = (value: string, label: string) => { const match = value.trim().match(/^(\d+(?:\.\d+)?)\s*x\s*(\d+(?:\.\d+)?)$/i); if (!match) throw Object.assign(new Error(label === "footer size" ? "Enter footer size as Width x Depth (example: 18x24)." : "Enter dimensions as Length x Width (example: 60x40)."), { status: 400 }); return [Number(match[1]), Number(match[2])] as const; };
-const calculateYardage = (input: { dimensions: string; thickness: number; secondaryThickness?: number; footers: string; additionalConcreteYardage?: number; wasteOverageYardage?: number }) => {
+const calculateYardage = (input: { dimensions: string; thickness: number; secondaryDimensions?: string; secondaryThickness?: number; footers: string; additionalConcreteYardage?: number; wasteOverageYardage?: number }) => {
   const [length, width] = parsePair(input.dimensions, "dimensions"); const [footerWidth, footerDepth] = parsePair(input.footers, "footer size");
   if (!(input.thickness > 0)) throw Object.assign(new Error("Thickness must be greater than zero."), { status: 400 });
-  const slabSquareFeet = length * width; const slabYardage = (length * width * input.thickness) / 324; const secondaryThickness = input.secondaryThickness || 0; const secondaryThicknessYardage = secondaryThickness > input.thickness ? (length * width * (secondaryThickness - input.thickness)) / 324 : 0; const footerYardage = ((2 * (length + width)) * (footerWidth / 12) * (footerDepth / 12)) / 27; const totalYardage = slabYardage + footerYardage;
+  const slabSquareFeet = length * width; const slabYardage = (length * width * input.thickness) / 324; const secondaryDimensions = input.secondaryDimensions?.trim() || ""; const [secondaryLength, secondaryWidth] = secondaryDimensions ? parsePair(secondaryDimensions, "dimensions") : [0, 0]; const secondaryThickness = input.secondaryThickness || 0; const secondaryThicknessYardage = secondaryThickness > input.thickness ? (secondaryLength * secondaryWidth * (secondaryThickness - input.thickness)) / 324 : 0; const footerYardage = ((2 * (length + width)) * (footerWidth / 12) * (footerDepth / 12)) / 27; const totalYardage = slabYardage + footerYardage;
   const additionalConcreteYardage = input.additionalConcreteYardage || 0; const wasteOverageYardage = input.wasteOverageYardage || 0;
-  return { length, width, footerWidth, footerDepth, slabSquareFeet, slabYardage, padYardage: slabYardage, secondaryThickness, secondaryThicknessYardage, footerYardage, totalYardage, additionalConcreteYardage, wasteOverageYardage, finalOrderYardage: totalYardage + secondaryThicknessYardage + additionalConcreteYardage + wasteOverageYardage };
+  return { length, width, footerWidth, footerDepth, slabSquareFeet, slabYardage, padYardage: slabYardage, secondaryDimensions, secondaryThickness, secondaryThicknessYardage, footerYardage, totalYardage, additionalConcreteYardage, wasteOverageYardage, finalOrderYardage: totalYardage + secondaryThicknessYardage + additionalConcreteYardage + wasteOverageYardage };
 };
 
 const requireRole = (...allowed: Role[]) => (req: Request, res: Response, next: NextFunction) => {
@@ -286,6 +286,7 @@ export function createApp(store: DataStore, esign: EsignService = new Configured
     projectId: z.string().optional().or(z.literal("")),
     dimensions: z.string().trim().min(3).max(40),
     thickness: z.coerce.number().positive().max(48),
+    secondaryDimensions: z.string().trim().max(40).default(""),
     secondaryThickness: z.coerce.number().min(0).max(48).default(0),
     footers: z.string().trim().min(3).max(40),
     concreteCost: z.coerce.number().nonnegative().default(0),
