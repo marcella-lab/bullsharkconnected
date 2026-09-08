@@ -97,7 +97,10 @@ async function migrate(data: PortalData) {
       const footerYardage = (2 * (length + width) * (footerWidth / 12) * (footerDepth / 12)) / 27;
       Object.assign(row, { length, width, footerWidth, footerDepth, slabSquareFeet, slabYardage, padYardage: slabYardage, footerYardage, totalYardage: slabYardage + footerYardage, additionalConcreteYardage: 0, wasteOverageYardage: 0, finalOrderYardage: slabYardage + footerYardage }); changed = true;
     }
-    if (row.secondaryDimensions === undefined || row.secondaryThickness === undefined || row.secondaryAreaYardage === undefined) { row.secondaryDimensions = row.secondaryDimensions || ""; row.secondaryThickness = row.secondaryThickness || 0; row.secondaryAreaYardage = 0; changed = true; }
+    if (row.secondaryDimensions === undefined || row.secondarySectionType === undefined || row.secondaryAreaYardage === undefined || row.noPourDimensions === undefined || row.wastePercent === undefined) {
+      const subtotal = (row.totalYardage || 0) + (row.additionalConcreteYardage || 0);
+      Object.assign(row, { secondaryDimensions: row.secondaryDimensions || "", secondaryThickness: row.secondaryThickness || 0, secondarySectionType: row.secondarySectionType || "inside", secondarySquareFeet: row.secondarySquareFeet || 0, secondaryAreaYardage: row.secondaryAreaYardage || 0, noPourDimensions: row.noPourDimensions || "", noPourThickness: row.noPourThickness || 0, noPourSquareFeet: row.noPourSquareFeet || 0, netMainSquareFeet: row.netMainSquareFeet ?? row.slabSquareFeet, totalCoveredSlabSquareFeet: row.totalCoveredSlabSquareFeet ?? row.slabSquareFeet, mainSlabYardage: row.mainSlabYardage ?? row.slabYardage, keepFooterAroundNoPour: row.keepFooterAroundNoPour ?? true, additionalFooterDepth: row.additionalFooterDepth ?? Math.max((row.footerDepth || 0) - row.thickness, 0), wastePercent: subtotal > 0 ? ((row.wasteOverageYardage || 0) / subtotal) * 100 : 0, recommendedOrderYardage: row.recommendedOrderYardage || Math.ceil(row.finalOrderYardage || 0) }); changed = true;
+    }
   }
   for (const [index, project] of data.projects.entries()) {
     if (!project.milestones) { project.milestones = []; changed = true; }

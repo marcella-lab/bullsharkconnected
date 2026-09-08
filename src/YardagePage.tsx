@@ -21,9 +21,13 @@ type Draft = Pick<
   | "thickness"
   | "secondaryDimensions"
   | "secondaryThickness"
+  | "secondarySectionType"
+  | "noPourDimensions"
+  | "noPourThickness"
+  | "keepFooterAroundNoPour"
   | "footers"
   | "additionalConcreteYardage"
-  | "wasteOverageYardage"
+  | "wastePercent"
   | "notes"
 >;
 const blank: Draft = {
@@ -36,9 +40,13 @@ const blank: Draft = {
   thickness: 6,
   secondaryDimensions: "",
   secondaryThickness: 0,
+  secondarySectionType: "inside",
+  noPourDimensions: "",
+  noPourThickness: 0,
+  keepFooterAroundNoPour: true,
   footers: "",
   additionalConcreteYardage: 0,
-  wasteOverageYardage: 0,
+  wastePercent: 0,
   notes: "",
 };
 const cy = (n: number) => `${(n || 0).toFixed(2)} CY`;
@@ -50,15 +58,27 @@ const previewYardage = (draft: Draft) => {
   const primary = dimensionPair(draft.dimensions);
   const footer = dimensionPair(draft.footers);
   const secondary = draft.secondaryDimensions.trim() ? dimensionPair(draft.secondaryDimensions) : null;
+  const noPour = draft.noPourDimensions.trim() ? dimensionPair(draft.noPourDimensions) : null;
   if (!primary || !footer || !(draft.thickness > 0)) return null;
   const totalSquareFeet = primary[0] * primary[1];
   const secondarySquareFeet = secondary ? secondary[0] * secondary[1] : 0;
-  if (secondarySquareFeet > totalSquareFeet) return { error: "Secondary area cannot exceed the total slab area." };
+  const noPourSquareFeet = noPour ? noPour[0] * noPour[1] : 0;
+  if (draft.secondarySectionType === "inside" && secondarySquareFeet > totalSquareFeet) return { error: "An inside secondary area cannot exceed the main slab area." };
   if (draft.secondaryDimensions.trim() && !(draft.secondaryThickness > 0)) return { error: "Enter a secondary thickness greater than zero." };
-  const slab = ((totalSquareFeet - secondarySquareFeet) * draft.thickness) / 324 + (secondarySquareFeet * draft.secondaryThickness) / 324;
-  const footerYardage = ((2 * (primary[0] + primary[1])) * (footer[0] / 12) * (footer[1] / 12)) / 27;
+  if (noPourSquareFeet > totalSquareFeet) return { error: "No-pour area cannot exceed the main slab area." };
+  if (draft.noPourDimensions.trim() && !(draft.noPourThickness > 0)) return { error: "Enter the thickness affected by the no-pour area." };
+  const mainSlab = totalSquareFeet * draft.thickness / 324;
+  const secondaryYardage = secondarySquareFeet * draft.secondaryThickness / 324;
+  const insideAdjustment = draft.secondarySectionType === "inside" ? secondarySquareFeet * (draft.secondaryThickness - draft.thickness) / 324 : 0;
+  const additionalYardage = draft.secondarySectionType === "additional" ? secondaryYardage : 0;
+  const noPourYardage = noPourSquareFeet * draft.noPourThickness / 324;
+  const slab = mainSlab + insideAdjustment + additionalYardage - noPourYardage;
+  const outerPerimeter = 2 * (primary[0] + primary[1]);
+  const footerPerimeter = !draft.keepFooterAroundNoPour && noPour ? Math.max(0, outerPerimeter - noPour[0] - noPour[1]) : outerPerimeter;
+  const footerYardage = (footerPerimeter * (footer[0] / 12) * Math.max(footer[1] - draft.thickness, 0) / 12) / 27;
   const total = slab + footerYardage;
-  return { slab, footerYardage, total, final: total + draft.additionalConcreteYardage + draft.wasteOverageYardage };
+  const waste = (total + draft.additionalConcreteYardage) * draft.wastePercent / 100;
+  return { slab, footerYardage, total, waste, final: total + draft.additionalConcreteYardage + waste, recommended: Math.ceil(total + draft.additionalConcreteYardage + waste) };
 };
 const heads = [
   "Status",
@@ -69,15 +89,22 @@ const heads = [
   "Thickness",
   "Secondary dimensions",
   "Secondary thickness",
+  "Secondary Type",
   "Secondary Area CY",
+  "No-Pour Area",
+  "No-Pour SF",
+  "Net Main SF",
+  "Covered Slab SF",
   "Footers",
   "Slab Square Feet",
   "Slab CY",
   "Footer CY",
   "Total CY",
   "Additional Concrete CY",
-  "Waste/Overage CY",
+  "Waste %",
+  "Waste CY",
   "Final Order CY",
+  "Recommended Order CY",
   "Actions",
 ];
 export function YardagePage({
@@ -151,9 +178,13 @@ export function YardagePage({
       thickness: r.thickness,
       secondaryDimensions: r.secondaryDimensions || "",
       secondaryThickness: r.secondaryThickness || 0,
+      secondarySectionType: r.secondarySectionType || "inside",
+      noPourDimensions: r.noPourDimensions || "",
+      noPourThickness: r.noPourThickness || 0,
+      keepFooterAroundNoPour: r.keepFooterAroundNoPour !== false,
       footers: r.footers,
       additionalConcreteYardage: r.additionalConcreteYardage || 0,
-      wasteOverageYardage: r.wasteOverageYardage || 0,
+      wastePercent: r.wastePercent || 0,
       notes: r.notes || "",
     });
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -181,15 +212,22 @@ export function YardagePage({
       r.thickness,
       r.secondaryDimensions,
       r.secondaryThickness,
+      r.secondarySectionType,
       r.secondaryAreaYardage,
+      r.noPourDimensions,
+      r.noPourSquareFeet,
+      r.netMainSquareFeet,
+      r.totalCoveredSlabSquareFeet,
       r.footers,
       r.slabSquareFeet,
       r.slabYardage,
       r.footerYardage,
       r.totalYardage,
       r.additionalConcreteYardage,
+      r.wastePercent,
       r.wasteOverageYardage,
       r.finalOrderYardage,
+      r.recommendedOrderYardage,
     ]);
     const csv = [heads.slice(0, -1), ...vals]
       .map((line) =>
@@ -303,10 +341,14 @@ export function YardagePage({
             value={draft.secondaryThickness}
             set={(v) => put("secondaryThickness", v)}
           />
+          <label className="currency-input"><span>Secondary section type</span><select value={draft.secondarySectionType} onChange={(e) => put("secondarySectionType", e.target.value as Draft["secondarySectionType"])}><option value="inside">Inside main slab</option><option value="additional">Additional attached slab</option></select></label>
+          <label className="currency-input"><span>No-pour area</span><input value={draft.noPourDimensions} onChange={(e) => put("noPourDimensions", e.target.value)} placeholder="No-pour: 8x10" /></label>
+          <Num label="No-pour thickness affected (in)" value={draft.noPourThickness} set={(v) => put("noPourThickness", v)} />
+          <label className="yardage-check"><input type="checkbox" checked={draft.keepFooterAroundNoPour} onChange={(e) => put("keepFooterAroundNoPour", e.target.checked)} /> Keep footer / thickened edge around no-pour</label>
           <input
             value={draft.footers}
             onChange={(e) => put("footers", e.target.value)}
-            placeholder="Footers: 18x24"
+            placeholder="Thickened edge: 12x18"
             required
           />
           <Num
@@ -314,22 +356,19 @@ export function YardagePage({
             value={draft.additionalConcreteYardage}
             set={(v) => put("additionalConcreteYardage", v)}
           />
-          <Num
-            label="Waste / overage CY"
-            value={draft.wasteOverageYardage}
-            set={(v) => put("wasteOverageYardage", v)}
-          />
+          <label className="currency-input"><span>Waste / overage</span><select value={[0, 5, 7, 10].includes(draft.wastePercent) ? String(draft.wastePercent) : "custom"} onChange={(e) => { if (e.target.value !== "custom") put("wastePercent", Number(e.target.value)); }}><option value="0">0%</option><option value="5">5%</option><option value="7">7%</option><option value="10">10%</option><option value="custom">Custom</option></select></label>
+          <Num label="Custom waste %" value={draft.wastePercent} set={(v) => put("wastePercent", v)} />
           <button className="button button-primary" type="submit">
             <Plus size={15} /> {editing ? "Save row" : "Add row"}
           </button>
-          {liveEstimate && ("error" in liveEstimate ? <p className="form-error">{liveEstimate.error}</p> : <p className="yardage-live-estimate">Live estimate: Slab <b>{cy(liveEstimate.slab)}</b> · Footers <b>{cy(liveEstimate.footerYardage)}</b> · Total <b>{cy(liveEstimate.total)}</b> · Final <b>{cy(liveEstimate.final)}</b></p>)}
+          {liveEstimate && ("error" in liveEstimate ? <p className="form-error">{liveEstimate.error}</p> : <p className="yardage-live-estimate">Live estimate: Slab <b>{cy(liveEstimate.slab)}</b> · Thickened edge <b>{cy(liveEstimate.footerYardage)}</b> · Total <b>{cy(liveEstimate.total)}</b> · Waste <b>{cy(liveEstimate.waste)}</b> · Final <b>{cy(liveEstimate.final)}</b> · Recommended <b>{liveEstimate.recommended} CY</b></p>)}
           {saveError && <p className="form-error">{saveError}</p>}
         </form>
         <p className="form-hint">
-          Enter the secondary area only when it sits inside the main slab. Its
-          square footage is removed from the primary area and calculated at its
-          own thickness. Final Order CY adds slab, footers, additional concrete,
-          and waste/overage.
+          Footers are entered as width × total depth. The calculator counts only
+          the depth below the main slab, so slab concrete is not double-counted.
+          Choose whether a secondary section is inside the main slab or an
+          additional attached slab. No-pour areas remove only slab concrete.
         </p>
       </section>
       <section className="yardage-panel">
@@ -393,17 +432,24 @@ export function YardagePage({
                   <td>{r.thickness} in</td>
                   <td>{r.secondaryDimensions || "—"}</td>
                   <td>{r.secondaryThickness ? `${r.secondaryThickness} in` : "—"}</td>
+                  <td>{r.secondarySectionType === "additional" ? "Additional" : "Inside"}</td>
                   <td>{cy(r.secondaryAreaYardage)}</td>
+                  <td>{r.noPourDimensions || "—"}</td>
+                  <td>{r.noPourSquareFeet.toFixed(2)}</td>
+                  <td>{r.netMainSquareFeet.toFixed(2)}</td>
+                  <td>{r.totalCoveredSlabSquareFeet.toFixed(2)}</td>
                   <td>{r.footers}</td>
                   <td>{r.slabSquareFeet.toFixed(2)}</td>
                   <td>{cy(r.slabYardage)}</td>
                   <td>{cy(r.footerYardage)}</td>
                   <td>{cy(r.totalYardage)}</td>
                   <td>{cy(r.additionalConcreteYardage)}</td>
+                  <td>{r.wastePercent.toFixed(2)}%</td>
                   <td>{cy(r.wasteOverageYardage)}</td>
                   <td>
                     <strong>{cy(r.finalOrderYardage)}</strong>
                   </td>
+                  <td><strong>{r.recommendedOrderYardage} CY</strong></td>
                   <td className="table-actions">
                     <button
                       className="button button-small"
@@ -429,7 +475,7 @@ export function YardagePage({
               ))}
               {!shown.length && (
                 <tr>
-                  <td colSpan={18} className="empty-cell">
+                  <td colSpan={25} className="empty-cell">
                     No calculator rows match these filters. Add your first
                     project above.
                   </td>

@@ -79,15 +79,26 @@ const subcontractorUsersFor = (data: PortalData, contractorId?: string) => {
 };
 const jobIsAssignedTo = (data: PortalData, user: PortalUser | undefined, job: Job) => Boolean(user && (user.jobIds.includes(job.id) || subcontractorUsersFor(data, job.contractorId).some((account) => account.id === user.id)));
 const parsePair = (value: string, label: string) => { const match = value.trim().match(/^(\d+(?:\.\d+)?)\s*x\s*(\d+(?:\.\d+)?)$/i); const values = match ? [Number(match[1]), Number(match[2])] as const : undefined; if (!values || values.some((item) => item <= 0)) throw Object.assign(new Error(label === "footer size" ? "Enter footer size as Width x Depth using values greater than zero (example: 18x24)." : "Enter dimensions as Length x Width using values greater than zero (example: 60x40)."), { status: 400 }); return values; };
-const calculateYardage = (input: { dimensions: string; thickness: number; secondaryDimensions?: string; secondaryThickness?: number; footers: string; additionalConcreteYardage?: number; wasteOverageYardage?: number }) => {
+const calculateYardage = (input: { dimensions: string; thickness: number; secondaryDimensions?: string; secondaryThickness?: number; secondarySectionType?: "inside" | "additional"; noPourDimensions?: string; noPourThickness?: number; keepFooterAroundNoPour?: boolean; footers: string; additionalConcreteYardage?: number; wastePercent?: number }) => {
   const [length, width] = parsePair(input.dimensions, "dimensions"); const [footerWidth, footerDepth] = parsePair(input.footers, "footer size");
   if (!(input.thickness > 0)) throw Object.assign(new Error("Thickness must be greater than zero."), { status: 400 });
-  const slabSquareFeet = length * width; const secondaryDimensions = input.secondaryDimensions?.trim() || ""; const [secondaryLength, secondaryWidth] = secondaryDimensions ? parsePair(secondaryDimensions, "dimensions") : [0, 0]; const secondaryAreaSquareFeet = secondaryLength * secondaryWidth; const secondaryThickness = input.secondaryThickness || 0;
-  if (secondaryAreaSquareFeet > slabSquareFeet) throw Object.assign(new Error("Secondary area cannot exceed the total slab area."), { status: 400 });
-  if (secondaryDimensions && !(secondaryThickness > 0)) throw Object.assign(new Error("Enter a secondary thickness greater than zero for the secondary area."), { status: 400 });
-  const primaryAreaYardage = ((slabSquareFeet - secondaryAreaSquareFeet) * input.thickness) / 324; const secondaryAreaYardage = secondaryAreaSquareFeet ? (secondaryAreaSquareFeet * secondaryThickness) / 324 : 0; const slabYardage = primaryAreaYardage + secondaryAreaYardage; const footerYardage = ((2 * (length + width)) * (footerWidth / 12) * (footerDepth / 12)) / 27; const totalYardage = slabYardage + footerYardage;
-  const additionalConcreteYardage = input.additionalConcreteYardage || 0; const wasteOverageYardage = input.wasteOverageYardage || 0;
-  return { length, width, footerWidth, footerDepth, slabSquareFeet, slabYardage, padYardage: slabYardage, secondaryDimensions, secondaryThickness, secondaryAreaYardage, footerYardage, totalYardage, additionalConcreteYardage, wasteOverageYardage, finalOrderYardage: totalYardage + additionalConcreteYardage + wasteOverageYardage };
+  const slabSquareFeet = length * width; const secondaryDimensions = input.secondaryDimensions?.trim() || ""; const [secondaryLength, secondaryWidth] = secondaryDimensions ? parsePair(secondaryDimensions, "dimensions") : [0, 0]; const secondarySquareFeet = secondaryLength * secondaryWidth; const secondaryThickness = input.secondaryThickness || 0; const secondarySectionType = input.secondarySectionType || "inside";
+  const noPourDimensions = input.noPourDimensions?.trim() || ""; const [noPourLength, noPourWidth] = noPourDimensions ? parsePair(noPourDimensions, "dimensions") : [0, 0]; const noPourSquareFeet = noPourLength * noPourWidth; const noPourThickness = input.noPourThickness || 0;
+  if (secondaryDimensions && !(secondaryThickness > 0)) throw Object.assign(new Error("Enter a secondary thickness greater than zero for the secondary section."), { status: 400 });
+  if (secondarySectionType === "inside" && secondarySquareFeet > slabSquareFeet) throw Object.assign(new Error("An inside secondary area cannot exceed the main slab area."), { status: 400 });
+  if (noPourDimensions && !(noPourThickness > 0)) throw Object.assign(new Error("Enter the thickness affected by the no-pour area."), { status: 400 });
+  if (noPourSquareFeet > slabSquareFeet) throw Object.assign(new Error("No-pour area cannot exceed the main slab area."), { status: 400 });
+  const mainSlabYardage = (slabSquareFeet * input.thickness) / 324;
+  const secondaryAreaYardage = secondarySquareFeet ? (secondarySquareFeet * secondaryThickness) / 324 : 0;
+  const insideAdjustment = secondarySectionType === "inside" && secondarySquareFeet ? secondarySquareFeet * (secondaryThickness - input.thickness) / 324 : 0;
+  const additionalSectionYardage = secondarySectionType === "additional" ? secondaryAreaYardage : 0;
+  const noPourYardage = noPourSquareFeet ? noPourSquareFeet * noPourThickness / 324 : 0;
+  const slabYardage = mainSlabYardage + insideAdjustment + additionalSectionYardage - noPourYardage;
+  const netMainSquareFeet = slabSquareFeet - noPourSquareFeet - (secondarySectionType === "inside" ? secondarySquareFeet : 0);
+  const totalCoveredSlabSquareFeet = slabSquareFeet - noPourSquareFeet + (secondarySectionType === "additional" ? secondarySquareFeet : 0);
+  const additionalFooterDepth = Math.max(footerDepth - input.thickness, 0); const outerPerimeter = 2 * (length + width); const footerPerimeter = input.keepFooterAroundNoPour === false && noPourDimensions ? Math.max(0, outerPerimeter - noPourLength - noPourWidth) : outerPerimeter; const footerYardage = (footerPerimeter * (footerWidth / 12) * (additionalFooterDepth / 12)) / 27; const totalYardage = slabYardage + footerYardage;
+  const additionalConcreteYardage = input.additionalConcreteYardage || 0; const wastePercent = input.wastePercent || 0; const wasteOverageYardage = (totalYardage + additionalConcreteYardage) * wastePercent / 100; const finalOrderYardage = totalYardage + additionalConcreteYardage + wasteOverageYardage;
+  return { length, width, footerWidth, footerDepth, additionalFooterDepth, slabSquareFeet, slabYardage, padYardage: slabYardage, mainSlabYardage, secondaryDimensions, secondaryThickness, secondarySectionType, secondarySquareFeet, secondaryAreaYardage, noPourDimensions, noPourThickness, noPourSquareFeet, netMainSquareFeet, totalCoveredSlabSquareFeet, keepFooterAroundNoPour: input.keepFooterAroundNoPour !== false, footerYardage, totalYardage, additionalConcreteYardage, wastePercent, wasteOverageYardage, finalOrderYardage, recommendedOrderYardage: Math.ceil(finalOrderYardage) };
 };
 
 const requireRole = (...allowed: Role[]) => (req: Request, res: Response, next: NextFunction) => {
@@ -291,13 +302,17 @@ export function createApp(store: DataStore, esign: EsignService = new Configured
     thickness: z.coerce.number().positive().max(48),
     secondaryDimensions: z.string().trim().max(40).default(""),
     secondaryThickness: z.coerce.number().min(0).max(48).default(0),
+    secondarySectionType: z.enum(["inside", "additional"]).default("inside"),
+    noPourDimensions: z.string().trim().max(40).default(""),
+    noPourThickness: z.coerce.number().min(0).max(48).default(0),
+    keepFooterAroundNoPour: z.boolean().default(true),
     footers: z.string().trim().min(3).max(40),
     concreteCost: z.coerce.number().nonnegative().default(0),
     subCost: z.coerce.number().nonnegative().default(0),
     contractCost: z.coerce.number().nonnegative().default(0),
     additionalCosts: z.coerce.number().nonnegative().default(0),
     additionalConcreteYardage: z.coerce.number().nonnegative().default(0),
-    wasteOverageYardage: z.coerce.number().nonnegative().default(0),
+    wastePercent: z.coerce.number().min(0).max(100).default(0),
     notes: z.string().max(3000).optional(),
   });
   const supplierSchema = z.object({ company: z.string().trim().min(1).max(160), supplierType: z.string().trim().max(80).optional(), contactName: z.string().trim().max(120).optional(), phone: z.string().trim().max(50).optional(), email: z.string().email().optional().or(z.literal("")), state: z.string().trim().max(8).optional(), notes: z.string().trim().max(2000).optional() });

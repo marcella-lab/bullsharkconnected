@@ -98,28 +98,31 @@ describe("BullShark portal API", () => {
     const app = createApp(new MemoryDataStore());
     const created = await request(app).post("/api/yardage").set(headers("admin", "admin-1")).send({
       status: "ACTIVE", state: "NV", concreteCompany: "Cemex", client: "Angelo / Debbie Spinelli",
-      dimensions: "60 x 40", thickness: 6, footers: "18x24", additionalConcreteYardage: 2, wasteOverageYardage: 1.5, concreteCost: 13000, subCost: 13600, contractCost: 32000,
+      dimensions: "60 x 40", thickness: 6, footers: "18x24", additionalConcreteYardage: 2, wastePercent: 0, concreteCost: 13000, subCost: 13600, contractCost: 32000,
     });
     expect(created.status).toBe(201);
     expect(created.body.padYardage).toBeCloseTo(44.4444, 3);
-    expect(created.body.footerYardage).toBeCloseTo(22.2222, 3);
-    expect(created.body.totalYardage).toBeCloseTo(66.6666, 3);
+    expect(created.body.footerYardage).toBeCloseTo(16.6666, 3);
+    expect(created.body.totalYardage).toBeCloseTo(61.1111, 3);
     expect(created.body.slabSquareFeet).toBe(2400);
     expect(created.body.slabYardage).toBeCloseTo(44.4444, 3);
-    expect(created.body.finalOrderYardage).toBeCloseTo(70.1666, 3);
+    expect(created.body.finalOrderYardage).toBeCloseTo(63.1111, 3);
     expect(created.body.concreteCost + created.body.subCost).toBe(26600);
     expect(created.body.contractCost - created.body.concreteCost - created.body.subCost).toBe(5400);
     const twoZone = await request(app).post("/api/yardage").set(headers("admin", "admin-1")).send({
       status: "ACTIVE", state: "TX", concreteCompany: "Cemex", client: "Two zone slab",
-      dimensions: "50x30", thickness: 6, secondaryDimensions: "20x30", secondaryThickness: 4,
-      footers: "12x12", additionalConcreteYardage: 0, wasteOverageYardage: 0,
+      dimensions: "50x30", thickness: 6, secondaryDimensions: "20x30", secondaryThickness: 4, secondarySectionType: "additional", noPourDimensions: "8x10", noPourThickness: 6, keepFooterAroundNoPour: true,
+      footers: "12x18", additionalConcreteYardage: 0, wastePercent: 10,
     });
     expect(twoZone.status).toBe(201);
     expect(twoZone.body.slabSquareFeet).toBe(1500);
+    expect(twoZone.body.noPourSquareFeet).toBe(80);
     expect(twoZone.body.secondaryAreaYardage).toBeCloseTo(7.4074, 3);
-    expect(twoZone.body.slabYardage).toBeCloseTo(24.074, 3);
+    expect(twoZone.body.slabYardage).toBeCloseTo(33.7037, 3);
     expect(twoZone.body.footerYardage).toBeCloseTo(5.9259, 3);
-    expect(twoZone.body.totalYardage).toBeCloseTo(30, 3);
+    expect(twoZone.body.totalYardage).toBeCloseTo(39.6296, 3);
+    expect(twoZone.body.finalOrderYardage).toBeCloseTo(43.5926, 3);
+    expect(twoZone.body.recommendedOrderYardage).toBe(44);
     const invalidSecondary = await request(app).post("/api/yardage").set(headers("admin", "admin-1")).send({ status: "ACTIVE", state: "TX", concreteCompany: "Cemex", client: "Invalid slab", dimensions: "50x30", thickness: 6, secondaryDimensions: "60x30", secondaryThickness: 4, footers: "12x12" });
     expect(invalidSecondary.status).toBe(400);
     const denied = await request(app).get("/api/yardage").set(headers("client", "client-1"));
