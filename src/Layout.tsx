@@ -5,6 +5,7 @@ import {
   ClipboardCheck,
   FileSignature,
   FolderKanban,
+  Home,
   LayoutDashboard,
   Menu,
   MessageSquareText,
@@ -30,6 +31,7 @@ const navByRole: Record<Role, NavItem[]> = {
     { id: "overview", label: "Overview", icon: LayoutDashboard },
     { id: "projects", label: "Projects & jobs", icon: FolderKanban },
     { id: "yardage", label: "Yardage calculator", icon: Calculator },
+    { id: "barndominium-calculator", label: "Barndominium calculator", icon: Home },
     { id: "financials", label: "Financials", icon: BriefcaseBusiness },
     { id: "suppliers", label: "Suppliers", icon: UsersRound },
     { id: "spending", label: "Project spending", icon: BriefcaseBusiness },
@@ -44,7 +46,7 @@ const navByRole: Record<Role, NavItem[]> = {
     { id: "audit", label: "Audit log", icon: ShieldCheck },
   ],
   project_manager: [
-    { id: "overview", label: "Overview", icon: LayoutDashboard }, { id: "projects", label: "Projects & jobs", icon: FolderKanban }, { id: "yardage", label: "Yardage calculator", icon: Calculator }, { id: "financials", label: "Financials", icon: BriefcaseBusiness }, { id: "suppliers", label: "Suppliers", icon: UsersRound }, { id: "potential", label: "Potential jobs", icon: Search }, { id: "pay-requests", label: "Invoices / pay requests", icon: ClipboardCheck }, { id: "users", label: "User management", icon: UsersRound }, { id: "notifications", label: "Notifications", icon: Bell }, { id: "schedule", label: "Schedule", icon: CalendarDays }, { id: "contracts", label: "Contracts", icon: FileSignature }, { id: "interests", label: "Interest inbox", icon: UsersRound }, { id: "settings", label: "Admin settings", icon: Settings }, { id: "audit", label: "Audit log", icon: ShieldCheck },
+    { id: "overview", label: "Overview", icon: LayoutDashboard }, { id: "projects", label: "Projects & jobs", icon: FolderKanban }, { id: "yardage", label: "Yardage calculator", icon: Calculator }, { id: "barndominium-calculator", label: "Barndominium calculator", icon: Home }, { id: "financials", label: "Financials", icon: BriefcaseBusiness }, { id: "suppliers", label: "Suppliers", icon: UsersRound }, { id: "potential", label: "Potential jobs", icon: Search }, { id: "pay-requests", label: "Invoices / pay requests", icon: ClipboardCheck }, { id: "users", label: "User management", icon: UsersRound }, { id: "notifications", label: "Notifications", icon: Bell }, { id: "schedule", label: "Schedule", icon: CalendarDays }, { id: "contracts", label: "Contracts", icon: FileSignature }, { id: "interests", label: "Interest inbox", icon: UsersRound }, { id: "settings", label: "Admin settings", icon: Settings }, { id: "audit", label: "Audit log", icon: ShieldCheck },
   ],
   client: [
     { id: "overview", label: "My project", icon: FolderKanban },
