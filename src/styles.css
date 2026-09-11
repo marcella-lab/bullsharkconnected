@@ -483,6 +483,15 @@ h1, h2, h3, p { margin-top: 0; }
 .assigned-facts strong { font-size: 9px; line-height: 1.4; }
 .assigned-card footer { margin-bottom: 7px; display: flex; justify-content: space-between; color: #526a75; font-size: 9px; }
 .assigned-card footer strong { color: #169caf; }
+.assigned-card.job-complete { order: 2; border-color: #ccd7db !important; background: #f8fafb; }
+.assigned-card.job-complete h2 { color: #53666e; }
+.assigned-card-actions { display: grid; gap: 13px; margin-top: 14px; }
+.assigned-card-actions footer { margin: 0; }
+.sub-project-details { margin-top: 13px; border-top: 1px solid #dce6ea; }
+.sub-project-details summary { padding: 11px 0 0; color: #0d637a; font-size: 11px; font-weight: 800; cursor: pointer; user-select: none; }
+.sub-project-details summary::marker { color: #098fa9; }
+.sub-project-details > div { padding-top: 11px; }
+.sub-project-details .yardage-reference { margin: 0 0 12px; }
 .location-line a { color: inherit; text-decoration: underline; text-underline-offset: 3px; }
 .location-line a:hover { color: var(--cyan-dark); }
 .sub-calendar { display: grid; gap: 14px; }
@@ -866,24 +875,3 @@ html, body, #root { width: 100%; max-width: 100%; min-height: 100%; background: 
 .project-notes-media-grid { grid-template-columns: minmax(0, 1.25fr) minmax(300px, .85fr); }
 /* Menus are rendered above cards, so card content never needs to spill out. */
 .action-menu-portal { position: fixed !important; right: auto !important; z-index: 3000 !important; }
-
-/* Dedicated Viper Steel calculator entry point */
-.viper-calculator-page { display: grid; gap: 22px; max-width: 1180px; margin: 0 auto; padding-block: 8px 30px; }
-.viper-calculator-hero { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: clamp(28px, 4vw, 48px); color: #f8fbfa; background: linear-gradient(120deg, #152b27, #284c43); border-radius: 20px; box-shadow: 0 14px 32px rgba(17, 47, 40, .2); }
-.viper-calculator-hero h1 { margin: 9px 0 8px; color: inherit; font-size: clamp(1.85rem, 3vw, 2.75rem); letter-spacing: -.035em; }
-.viper-calculator-hero p { max-width: 600px; margin: 0; color: #d9e8e2; font-size: 1.05rem; }
-.viper-eyebrow { display: inline-flex; align-items: center; gap: 7px; color: #b8d7ca; font-size: .82rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
-.viper-launch { flex: 0 0 auto; white-space: nowrap; background: #b9d8c8 !important; color: #17342d !important; border-color: #b9d8c8 !important; }
-.viper-calculator-grid { display: grid; grid-template-columns: 1.25fr 1fr 1fr; gap: 18px; }
-.viper-card { min-height: 260px; padding: 26px; background: #fff; border: 1px solid #d5e2dc; border-radius: 16px; box-shadow: 0 5px 15px rgba(29, 62, 53, .08); }
-.viper-card-featured { background: #f3f8f5; }
-.viper-card h2 { margin: 16px 0 10px; color: #1c322b; font-size: 1.18rem; }
-.viper-card p, .viper-card li { color: #587269; line-height: 1.6; }
-.viper-card ul { margin: 12px 0 0; padding-left: 19px; }
-.viper-card .button { margin-top: 18px; background: #294f44; border-color: #294f44; }
-.viper-icon { display: inline-grid; width: 48px; height: 48px; place-items: center; color: #fff; background: #315e51; border-radius: 14px; }
-.viper-icon-soft { color: #365c4e; background: #dcebe3; }.viper-icon-dark { color: #dcece5; background: #223b34; }
-.viper-note { display: flex; align-items: baseline; gap: 10px; padding: 16px 20px; color: #355449; background: #eaf3ee; border: 1px solid #d4e4db; border-radius: 13px; }
-.viper-note strong { color: #203f35; white-space: nowrap; }
-@media (max-width: 960px) { .viper-calculator-grid { grid-template-columns: 1fr 1fr; }.viper-card-featured { grid-column: span 2; min-height: 0; } }
-@media (max-width: 650px) { .viper-calculator-hero, .viper-note { align-items: stretch; flex-direction: column; }.viper-launch { width: 100%; justify-content: center; }.viper-calculator-grid { grid-template-columns: 1fr; }.viper-card-featured { grid-column: auto; }.viper-card { min-height: 0; }.viper-note { gap: 4px; } }

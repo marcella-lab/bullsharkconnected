@@ -23,6 +23,8 @@ import { currency, dateLabel, EmptyState, Field, Modal, PageHeading, ProgressBar
 import type { BootstrapPayload, InterestSubmission, Job } from "./types";
 
 const jobProject = (data: BootstrapPayload, job: Job) => data.projects.find((project) => project.id === job.projectId);
+const isCompletedJob = (job: Job) => job.status === "complete" || job.progress >= 100;
+const scheduledActiveJobs = (jobs: Job[]) => jobs.filter((job) => job.scheduleStart && !isCompletedJob(job));
 
 export function ClientPages({ data, view }: { data: BootstrapPayload; view: string }) {
   // Client access is intentionally limited to next steps and items that an
@@ -44,7 +46,7 @@ function ClientOverview({ data }: { data: BootstrapPayload }) {
       <section className="project-stack">{data.projects.map((project) => {
         const sharedFiles = (data.files || []).filter((file) => file.projectId === project.id);
         const photoCount = sharedFiles.filter(isPhotoFile).length;
-        const scheduled = data.jobs.filter((job) => job.projectId === project.id && job.scheduleStart).sort((a, b) => (a.scheduleStart || "").localeCompare(b.scheduleStart || ""));
+        const scheduled = scheduledActiveJobs(data.jobs.filter((job) => job.projectId === project.id)).sort((a, b) => (a.scheduleStart || "").localeCompare(b.scheduleStart || ""));
         const nextScheduled = scheduled.find((job) => (job.scheduleEnd || job.scheduleStart || "") >= today) || scheduled[0];
         const completedJobs = data.jobs.filter((job) => job.projectId === project.id && (job.status === "complete" || job.progress === 100));
         return <section className="project-card client-project" key={project.id}>
@@ -72,7 +74,8 @@ function ClientProjects({ data }: { data: BootstrapPayload }) {
 }
 
 function ClientSchedule({ data, scheduled }: { data: BootstrapPayload; scheduled: Job[] }) {
-  return <><PageHeading eyebrow="Published field dates" title="Job schedule" detail="These are the dates BullShark has scheduled work to take place on your project." /><section className="schedule-banner"><CalendarCheck2 /><div><strong>{scheduled.length} scheduled job{scheduled.length === 1 ? "" : "s"}</strong><span>Schedule changes published by BullShark appear here immediately.</span></div></section><section className="panel"><ClientScheduleRows data={data} jobs={scheduled} /></section></>;
+  const activeScheduled = scheduledActiveJobs(scheduled);
+  return <><PageHeading eyebrow="Published field dates" title="Job schedule" detail="These are the dates BullShark has scheduled work to take place on your project." /><section className="schedule-banner"><CalendarCheck2 /><div><strong>{activeScheduled.length} scheduled job{activeScheduled.length === 1 ? "" : "s"}</strong><span>Schedule changes published by BullShark appear here immediately.</span></div></section><section className="panel"><ClientScheduleRows data={data} jobs={activeScheduled} /></section></>;
 }
 
 function ClientScheduleRows({ data, jobs }: { data: BootstrapPayload; jobs: Job[] }) {
@@ -92,9 +95,9 @@ export function SubcontractorPages({ data, view, mutate, onOpenProject, onOpenJo
   // The server includes the viewer's job IDs for both older contractor
   // records and newly created subcontractor accounts.
   const assignedJobIds = new Set(data.users?.find((user) => user.id === data.viewer.id)?.jobIds || []);
-  const assigned = data.jobs.filter((job) => assignedJobIds.has(job.id)).sort((a, b) => (a.scheduleStart || "9999-12-31").localeCompare(b.scheduleStart || "9999-12-31"));
+  const assigned = data.jobs.filter((job) => assignedJobIds.has(job.id)).sort((a, b) => Number(isCompletedJob(a)) - Number(isCompletedJob(b)) || (a.scheduleStart || "9999-12-31").localeCompare(b.scheduleStart || "9999-12-31"));
   const potential = data.jobs.filter((job) => job.interestOpen);
-  const scheduled = assigned.filter((job) => job.scheduleStart).sort((a, b) => (a.scheduleStart || "").localeCompare(b.scheduleStart || ""));
+  const scheduled = scheduledActiveJobs(assigned).sort((a, b) => (a.scheduleStart || "").localeCompare(b.scheduleStart || ""));
   if (view === "jobs") return <SubJobs data={data} jobs={assigned} onOpenProject={onOpenProject} onOpenJob={onOpenJob} />;
   if (view === "schedule") return <SubSchedule data={data} jobs={scheduled} onOpenProject={onOpenProject} />;
   if (view === "contracts") return <SubContracts data={data} mutate={mutate} />;
@@ -109,7 +112,7 @@ function SubOverview({ data, assigned, potential, scheduled, mutate, onOpenJob }
 
 function SubJobs({ data, jobs, onOpenProject, onOpenJob }: { data: BootstrapPayload; jobs: Job[]; onOpenProject?: (project: import("./types").Project) => void; onOpenJob?: (job: Job) => void }) {
   const [selected, setSelected] = useState<BootstrapPayload["projects"][number] | null>(null);
-  return <><PageHeading eyebrow="Assigned scopes" title="My jobs" detail="Scope, project location, dates, and progress for every job assigned to you." />{jobs.length === 0 ? <EmptyState title="No assigned jobs" detail="Accepted work will appear here as soon as BullShark makes an assignment." /> : <div className="assigned-grid">{jobs.map((job) => { const project = jobProject(data, job); const address = job.location || project?.address || ""; return <article className="assigned-card" key={job.id}><header><StatusPill tone={job.status === "in_progress" ? "cyan" : "orange"}>{job.status.replaceAll("_", " ")}</StatusPill><span>{job.number}</span></header><h2>{job.title}</h2><p>{job.scope}</p><div className="location-line"><MapPin size={15} /> {address ? <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`} target="_blank" rel="noreferrer">{address}</a> : "Address not set"}</div><div className="assigned-facts"><span><small>Project</small><strong>{project?.name}</strong></span><span><small>Field dates</small><strong>{job.scheduleStart ? `${dateLabel(job.scheduleStart)} – ${dateLabel(job.scheduleEnd)}` : "Pending"}</strong></span><span><small>Contract value</small><strong>{currency.format(job.price)}</strong></span></div>{project && <YardageReferenceSheet project={project} rows={data.yardageRows || []} />}{project?.fieldNotes && <section className="sub-field-notes"><strong>Field notes</strong><p>{project.fieldNotes}</p></section>}<button className="button button-small" onClick={() => { if (project) setSelected(project); }}>Project files</button><footer><span>{job.stage}</span><strong>{job.progress}%</strong></footer><ProgressBar value={job.progress} /></article>; })}</div>}{selected && <ProjectFilesModal data={data} project={selected} role="subcontractor" onClose={() => setSelected(null)} />}</>;
+  return <><PageHeading eyebrow="Assigned scopes" title="My jobs" detail="Scope, project location, dates, and progress for every job assigned to you." />{jobs.length === 0 ? <EmptyState title="No assigned jobs" detail="Accepted work will appear here as soon as BullShark makes an assignment." /> : <div className="assigned-grid">{jobs.map((job) => { const project = jobProject(data, job); const address = job.location || project?.address || ""; const hasProjectDetails = project && ((data.yardageRows || []).some((row) => row.projectId === project.id) || project.fieldNotes); return <article className={`assigned-card${isCompletedJob(job) ? " job-complete" : ""}`} key={job.id}><header><StatusPill tone={job.status === "in_progress" ? "cyan" : "orange"}>{job.status.replaceAll("_", " ")}</StatusPill><span>{job.number}</span></header><h2>{job.title}</h2><p>{job.scope}</p><div className="location-line"><MapPin size={15} /> {address ? <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`} target="_blank" rel="noreferrer">{address}</a> : "Address not set"}</div><div className="assigned-facts"><span><small>Project</small><strong>{project?.name}</strong></span><span><small>Field dates</small><strong>{job.scheduleStart ? `${dateLabel(job.scheduleStart)} – ${dateLabel(job.scheduleEnd)}` : "Pending"}</strong></span><span><small>Contract value</small><strong>{currency.format(job.price)}</strong></span></div>{hasProjectDetails && <details className="sub-project-details"><summary>Project details</summary><div>{project && <YardageReferenceSheet project={project} rows={data.yardageRows || []} />}{project?.fieldNotes && <section className="sub-field-notes"><strong>Field notes</strong><p>{project.fieldNotes}</p></section>}</div></details>}<div className="assigned-card-actions"><button className="button button-small" onClick={() => { if (project) setSelected(project); }}>Project files</button><footer><span>{job.stage}</span><strong>{job.progress}%</strong></footer></div><ProgressBar value={job.progress} /></article>; })}</div>}{selected && <ProjectFilesModal data={data} project={selected} role="subcontractor" onClose={() => setSelected(null)} />}</>;
 }
 
 function SubSchedule({ data, jobs, onOpenProject }: { data: BootstrapPayload; jobs: Job[]; onOpenProject?: (project: import("./types").Project) => void }) {

@@ -70,13 +70,13 @@ export function AdminOverview({
   onOpenJob?: (job: Job) => void;
 }) {
   const assigned = data.jobs.filter((job) => job.contractorId).length;
-  const scheduled = data.jobs.filter((job) => job.scheduleStart).length;
+  const scheduled = data.jobs.filter((job) => job.scheduleStart && job.status !== "complete" && job.progress < 100).length;
   const contractTotal = data.contracts.reduce(
     (total, contract) => total + contract.price,
     0,
   );
   const upcoming = [...data.jobs]
-    .filter((job) => job.scheduleStart)
+    .filter((job) => job.scheduleStart && job.status !== "complete" && job.progress < 100)
     .sort((a, b) =>
       (a.scheduleStart || "").localeCompare(b.scheduleStart || ""),
     )
@@ -869,7 +869,7 @@ export function AdminSchedule({
   const [job, setJob] = useState<Job | null>(null);
   const [busy, setBusy] = useState(false);
   const scheduled = [...data.jobs]
-    .filter((item) => item.scheduleStart)
+    .filter((item) => item.scheduleStart && item.status !== "complete" && item.progress < 100)
     .sort((a, b) =>
       (a.scheduleStart || "").localeCompare(b.scheduleStart || ""),
     );
