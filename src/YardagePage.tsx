@@ -22,6 +22,11 @@ type Draft = Pick<
   | "secondaryDimensions"
   | "secondaryThickness"
   | "secondarySectionType"
+  | "thirdDimensions"
+  | "thirdThickness"
+  | "thirdSectionType"
+  | "thirdFooters"
+  | "thirdAdditionalConcreteYardage"
   | "noPourDimensions"
   | "noPourThickness"
   | "keepFooterAroundNoPour"
@@ -41,6 +46,11 @@ const blank: Draft = {
   secondaryDimensions: "",
   secondaryThickness: 0,
   secondarySectionType: "inside",
+  thirdDimensions: "",
+  thirdThickness: 0,
+  thirdSectionType: "inside",
+  thirdFooters: "",
+  thirdAdditionalConcreteYardage: 0,
   noPourDimensions: "",
   noPourThickness: 0,
   keepFooterAroundNoPour: true,
@@ -58,27 +68,36 @@ const previewYardage = (draft: Draft) => {
   const primary = dimensionPair(draft.dimensions);
   const footer = dimensionPair(draft.footers);
   const secondary = draft.secondaryDimensions.trim() ? dimensionPair(draft.secondaryDimensions) : null;
+  const third = draft.thirdDimensions.trim() ? dimensionPair(draft.thirdDimensions) : null;
+  const thirdFooter = draft.thirdFooters.trim() ? dimensionPair(draft.thirdFooters) : null;
   const noPour = draft.noPourDimensions.trim() ? dimensionPair(draft.noPourDimensions) : null;
   if (!primary || !footer || !(draft.thickness > 0)) return null;
   const totalSquareFeet = primary[0] * primary[1];
   const secondarySquareFeet = secondary ? secondary[0] * secondary[1] : 0;
+  const thirdSquareFeet = third ? third[0] * third[1] : 0;
   const noPourSquareFeet = noPour ? noPour[0] * noPour[1] : 0;
   if (draft.secondarySectionType === "inside" && secondarySquareFeet > totalSquareFeet) return { error: "An inside secondary area cannot exceed the main slab area." };
   if (draft.secondaryDimensions.trim() && !(draft.secondaryThickness > 0)) return { error: "Enter a secondary thickness greater than zero." };
+  if (draft.thirdDimensions.trim() && !(draft.thirdThickness > 0)) return { error: "Enter a third thickness greater than zero." };
+  if (draft.thirdSectionType === "inside" && thirdSquareFeet > totalSquareFeet) return { error: "A third section inside the main slab cannot exceed the main slab area." };
   if (noPourSquareFeet > totalSquareFeet) return { error: "No-pour area cannot exceed the main slab area." };
   if (draft.noPourDimensions.trim() && !(draft.noPourThickness > 0)) return { error: "Enter the thickness affected by the no-pour area." };
   const mainSlab = totalSquareFeet * draft.thickness / 324;
   const secondaryYardage = secondarySquareFeet * draft.secondaryThickness / 324;
   const insideAdjustment = draft.secondarySectionType === "inside" ? secondarySquareFeet * (draft.secondaryThickness - draft.thickness) / 324 : 0;
   const additionalYardage = draft.secondarySectionType === "additional" ? secondaryYardage : 0;
+  const thirdYardage = thirdSquareFeet * draft.thirdThickness / 324;
+  const thirdInsideAdjustment = draft.thirdSectionType === "inside" ? thirdSquareFeet * (draft.thirdThickness - draft.thickness) / 324 : 0;
+  const thirdAdditionalYardage = draft.thirdSectionType === "additional" ? thirdYardage : 0;
   const noPourYardage = noPourSquareFeet * draft.noPourThickness / 324;
-  const slab = mainSlab + insideAdjustment + additionalYardage - noPourYardage;
+  const slab = mainSlab + insideAdjustment + additionalYardage + thirdInsideAdjustment + thirdAdditionalYardage - noPourYardage;
   const outerPerimeter = 2 * (primary[0] + primary[1]);
   const footerPerimeter = !draft.keepFooterAroundNoPour && noPour ? Math.max(0, outerPerimeter - noPour[0] - noPour[1]) : outerPerimeter;
   const footerYardage = (footerPerimeter * (footer[0] / 12) * Math.max(footer[1] - draft.thickness, 0) / 12) / 27;
-  const total = slab + footerYardage;
-  const waste = (total + draft.additionalConcreteYardage) * draft.wastePercent / 100;
-  return { slab, footerYardage, total, waste, final: total + draft.additionalConcreteYardage + waste, recommended: Math.ceil(total + draft.additionalConcreteYardage + waste) };
+  const thirdFooterYardage = third && thirdFooter ? (2 * (third[0] + third[1]) * (thirdFooter[0] / 12) * (Math.max(thirdFooter[1] - (draft.thirdSectionType === "inside" ? draft.thickness : draft.thirdThickness), 0) / 12)) / 27 : 0;
+  const total = slab + footerYardage + thirdFooterYardage;
+  const waste = (total + draft.additionalConcreteYardage + draft.thirdAdditionalConcreteYardage) * draft.wastePercent / 100;
+  return { slab, footerYardage, thirdFooterYardage, total, waste, final: total + draft.additionalConcreteYardage + draft.thirdAdditionalConcreteYardage + waste, recommended: Math.ceil(total + draft.additionalConcreteYardage + draft.thirdAdditionalConcreteYardage + waste) };
 };
 const heads = [
   "Status",
@@ -91,6 +110,13 @@ const heads = [
   "Secondary thickness",
   "Secondary Type",
   "Secondary Area CY",
+  "Third dimensions",
+  "Third thickness",
+  "Third type",
+  "Third footer / thickened edge",
+  "Third section CY",
+  "Third footer CY",
+  "Third additional concrete CY",
   "No-Pour Area",
   "No-Pour SF",
   "Net Main SF",
@@ -179,6 +205,11 @@ export function YardagePage({
       secondaryDimensions: r.secondaryDimensions || "",
       secondaryThickness: r.secondaryThickness || 0,
       secondarySectionType: r.secondarySectionType || "inside",
+      thirdDimensions: r.thirdDimensions || "",
+      thirdThickness: r.thirdThickness || 0,
+      thirdSectionType: r.thirdSectionType || "inside",
+      thirdFooters: r.thirdFooters || "",
+      thirdAdditionalConcreteYardage: r.thirdAdditionalConcreteYardage || 0,
       noPourDimensions: r.noPourDimensions || "",
       noPourThickness: r.noPourThickness || 0,
       keepFooterAroundNoPour: r.keepFooterAroundNoPour !== false,
@@ -214,6 +245,13 @@ export function YardagePage({
       r.secondaryThickness,
       r.secondarySectionType,
       r.secondaryAreaYardage,
+      r.thirdDimensions,
+      r.thirdThickness,
+      r.thirdSectionType,
+      r.thirdFooters,
+      r.thirdAreaYardage,
+      r.thirdFooterYardage,
+      r.thirdAdditionalConcreteYardage,
       r.noPourDimensions,
       r.noPourSquareFeet,
       r.netMainSquareFeet,
@@ -342,6 +380,11 @@ export function YardagePage({
             set={(v) => put("secondaryThickness", v)}
           />
           <label className="currency-input"><span>Secondary section type</span><select value={draft.secondarySectionType} onChange={(e) => put("secondarySectionType", e.target.value as Draft["secondarySectionType"])}><option value="inside">Inside main slab</option><option value="additional">Additional attached slab</option></select></label>
+          <label className="currency-input"><span>Third dimensions</span><input value={draft.thirdDimensions} onChange={(e) => put("thirdDimensions", e.target.value)} placeholder="Third area: 12x20" /></label>
+          <Num label="Third thickness (in)" value={draft.thirdThickness} set={(v) => put("thirdThickness", v)} />
+          <label className="currency-input"><span>Third section type</span><select value={draft.thirdSectionType} onChange={(e) => put("thirdSectionType", e.target.value as Draft["thirdSectionType"])}><option value="inside">Inside main slab</option><option value="additional">Additional attached slab</option></select></label>
+          <label className="currency-input"><span>Third footer / thickened edge dimensions</span><input value={draft.thirdFooters} onChange={(e) => put("thirdFooters", e.target.value)} placeholder="Third footer: 12x12" /></label>
+          <Num label="Third additional concrete CY" value={draft.thirdAdditionalConcreteYardage} set={(v) => put("thirdAdditionalConcreteYardage", v)} />
           <label className="currency-input"><span>No-pour area</span><input value={draft.noPourDimensions} onChange={(e) => put("noPourDimensions", e.target.value)} placeholder="No-pour: 8x10" /></label>
           <Num label="No-pour thickness affected (in)" value={draft.noPourThickness} set={(v) => put("noPourThickness", v)} />
           <label className="yardage-check"><input type="checkbox" checked={draft.keepFooterAroundNoPour} onChange={(e) => put("keepFooterAroundNoPour", e.target.checked)} /> Keep footer / thickened edge around no-pour</label>
@@ -361,14 +404,16 @@ export function YardagePage({
           <button className="button button-primary" type="submit">
             <Plus size={15} /> {editing ? "Save row" : "Add row"}
           </button>
-          {liveEstimate && ("error" in liveEstimate ? <p className="form-error">{liveEstimate.error}</p> : <p className="yardage-live-estimate">Live estimate: Slab <b>{cy(liveEstimate.slab)}</b> · Thickened edge <b>{cy(liveEstimate.footerYardage)}</b> · Total <b>{cy(liveEstimate.total)}</b> · Waste <b>{cy(liveEstimate.waste)}</b> · Final <b>{cy(liveEstimate.final)}</b> · Recommended <b>{liveEstimate.recommended} CY</b></p>)}
+          {liveEstimate && ("error" in liveEstimate ? <p className="form-error">{liveEstimate.error}</p> : <p className="yardage-live-estimate">Live estimate: Slab <b>{cy(liveEstimate.slab)}</b> · Main thickened edge <b>{cy(liveEstimate.footerYardage)}</b> · Third thickened edge <b>{cy(liveEstimate.thirdFooterYardage)}</b> · Total <b>{cy(liveEstimate.total)}</b> · Waste <b>{cy(liveEstimate.waste)}</b> · Final <b>{cy(liveEstimate.final)}</b> · Recommended <b>{liveEstimate.recommended} CY</b></p>)}
           {saveError && <p className="form-error">{saveError}</p>}
         </form>
         <p className="form-hint">
           Footers are entered as width × total depth. The calculator counts only
           the depth below the main slab, so slab concrete is not double-counted.
-          Choose whether a secondary section is inside the main slab or an
-          additional attached slab. No-pour areas remove only slab concrete.
+          The calculator supports a primary slab plus secondary and third
+          sections without double-counting concrete. Choose whether each
+          section is inside the main slab or an additional attached slab.
+          No-pour areas remove only slab concrete.
         </p>
       </section>
       <section className="yardage-panel">
@@ -434,6 +479,13 @@ export function YardagePage({
                   <td>{r.secondaryThickness ? `${r.secondaryThickness} in` : "—"}</td>
                   <td>{r.secondarySectionType === "additional" ? "Additional" : "Inside"}</td>
                   <td>{cy(r.secondaryAreaYardage)}</td>
+                  <td>{r.thirdDimensions || "—"}</td>
+                  <td>{r.thirdThickness ? `${r.thirdThickness} in` : "—"}</td>
+                  <td>{r.thirdSectionType === "additional" ? "Additional" : "Inside"}</td>
+                  <td>{r.thirdFooters || "—"}</td>
+                  <td>{cy(r.thirdAreaYardage)}</td>
+                  <td>{cy(r.thirdFooterYardage)}</td>
+                  <td>{cy(r.thirdAdditionalConcreteYardage)}</td>
                   <td>{r.noPourDimensions || "—"}</td>
                   <td>{r.noPourSquareFeet.toFixed(2)}</td>
                   <td>{r.netMainSquareFeet.toFixed(2)}</td>

@@ -79,26 +79,33 @@ const subcontractorUsersFor = (data: PortalData, contractorId?: string) => {
 };
 const jobIsAssignedTo = (data: PortalData, user: PortalUser | undefined, job: Job) => Boolean(user && (user.jobIds.includes(job.id) || subcontractorUsersFor(data, job.contractorId).some((account) => account.id === user.id)));
 const parsePair = (value: string, label: string) => { const match = value.trim().match(/^(\d+(?:\.\d+)?)\s*x\s*(\d+(?:\.\d+)?)$/i); const values = match ? [Number(match[1]), Number(match[2])] as const : undefined; if (!values || values.some((item) => item <= 0)) throw Object.assign(new Error(label === "footer size" ? "Enter footer size as Width x Depth using values greater than zero (example: 18x24)." : "Enter dimensions as Length x Width using values greater than zero (example: 60x40)."), { status: 400 }); return values; };
-const calculateYardage = (input: { dimensions: string; thickness: number; secondaryDimensions?: string; secondaryThickness?: number; secondarySectionType?: "inside" | "additional"; noPourDimensions?: string; noPourThickness?: number; keepFooterAroundNoPour?: boolean; footers: string; additionalConcreteYardage?: number; wastePercent?: number }) => {
+const calculateYardage = (input: { dimensions: string; thickness: number; secondaryDimensions?: string; secondaryThickness?: number; secondarySectionType?: "inside" | "additional"; thirdDimensions?: string; thirdThickness?: number; thirdSectionType?: "inside" | "additional"; thirdFooters?: string; thirdAdditionalConcreteYardage?: number; noPourDimensions?: string; noPourThickness?: number; keepFooterAroundNoPour?: boolean; footers: string; additionalConcreteYardage?: number; wastePercent?: number }) => {
   const [length, width] = parsePair(input.dimensions, "dimensions"); const [footerWidth, footerDepth] = parsePair(input.footers, "footer size");
   if (!(input.thickness > 0)) throw Object.assign(new Error("Thickness must be greater than zero."), { status: 400 });
   const slabSquareFeet = length * width; const secondaryDimensions = input.secondaryDimensions?.trim() || ""; const [secondaryLength, secondaryWidth] = secondaryDimensions ? parsePair(secondaryDimensions, "dimensions") : [0, 0]; const secondarySquareFeet = secondaryLength * secondaryWidth; const secondaryThickness = input.secondaryThickness || 0; const secondarySectionType = input.secondarySectionType || "inside";
+  const thirdDimensions = input.thirdDimensions?.trim() || ""; const [thirdLength, thirdWidth] = thirdDimensions ? parsePair(thirdDimensions, "dimensions") : [0, 0]; const thirdSquareFeet = thirdLength * thirdWidth; const thirdThickness = input.thirdThickness || 0; const thirdSectionType = input.thirdSectionType || "inside"; const thirdFooters = input.thirdFooters?.trim() || ""; const [thirdFooterWidth, thirdFooterDepth] = thirdFooters ? parsePair(thirdFooters, "footer size") : [0, 0];
   const noPourDimensions = input.noPourDimensions?.trim() || ""; const [noPourLength, noPourWidth] = noPourDimensions ? parsePair(noPourDimensions, "dimensions") : [0, 0]; const noPourSquareFeet = noPourLength * noPourWidth; const noPourThickness = input.noPourThickness || 0;
   if (secondaryDimensions && !(secondaryThickness > 0)) throw Object.assign(new Error("Enter a secondary thickness greater than zero for the secondary section."), { status: 400 });
   if (secondarySectionType === "inside" && secondarySquareFeet > slabSquareFeet) throw Object.assign(new Error("An inside secondary area cannot exceed the main slab area."), { status: 400 });
+  if (thirdDimensions && !(thirdThickness > 0)) throw Object.assign(new Error("Enter a third thickness greater than zero for the third section."), { status: 400 });
+  if (thirdSectionType === "inside" && thirdSquareFeet > slabSquareFeet) throw Object.assign(new Error("A third section inside the main slab cannot exceed the main slab area."), { status: 400 });
   if (noPourDimensions && !(noPourThickness > 0)) throw Object.assign(new Error("Enter the thickness affected by the no-pour area."), { status: 400 });
   if (noPourSquareFeet > slabSquareFeet) throw Object.assign(new Error("No-pour area cannot exceed the main slab area."), { status: 400 });
   const mainSlabYardage = (slabSquareFeet * input.thickness) / 324;
   const secondaryAreaYardage = secondarySquareFeet ? (secondarySquareFeet * secondaryThickness) / 324 : 0;
   const insideAdjustment = secondarySectionType === "inside" && secondarySquareFeet ? secondarySquareFeet * (secondaryThickness - input.thickness) / 324 : 0;
   const additionalSectionYardage = secondarySectionType === "additional" ? secondaryAreaYardage : 0;
+  const thirdAreaYardage = thirdSquareFeet ? (thirdSquareFeet * thirdThickness) / 324 : 0;
+  const thirdInsideAdjustment = thirdSectionType === "inside" && thirdSquareFeet ? thirdSquareFeet * (thirdThickness - input.thickness) / 324 : 0;
+  const thirdAdditionalSectionYardage = thirdSectionType === "additional" ? thirdAreaYardage : 0;
   const noPourYardage = noPourSquareFeet ? noPourSquareFeet * noPourThickness / 324 : 0;
-  const slabYardage = mainSlabYardage + insideAdjustment + additionalSectionYardage - noPourYardage;
-  const netMainSquareFeet = slabSquareFeet - noPourSquareFeet - (secondarySectionType === "inside" ? secondarySquareFeet : 0);
-  const totalCoveredSlabSquareFeet = slabSquareFeet - noPourSquareFeet + (secondarySectionType === "additional" ? secondarySquareFeet : 0);
-  const additionalFooterDepth = Math.max(footerDepth - input.thickness, 0); const outerPerimeter = 2 * (length + width); const footerPerimeter = input.keepFooterAroundNoPour === false && noPourDimensions ? Math.max(0, outerPerimeter - noPourLength - noPourWidth) : outerPerimeter; const footerYardage = (footerPerimeter * (footerWidth / 12) * (additionalFooterDepth / 12)) / 27; const totalYardage = slabYardage + footerYardage;
-  const additionalConcreteYardage = input.additionalConcreteYardage || 0; const wastePercent = input.wastePercent || 0; const wasteOverageYardage = (totalYardage + additionalConcreteYardage) * wastePercent / 100; const finalOrderYardage = totalYardage + additionalConcreteYardage + wasteOverageYardage;
-  return { length, width, footerWidth, footerDepth, additionalFooterDepth, slabSquareFeet, slabYardage, padYardage: slabYardage, mainSlabYardage, secondaryDimensions, secondaryThickness, secondarySectionType, secondarySquareFeet, secondaryAreaYardage, noPourDimensions, noPourThickness, noPourSquareFeet, netMainSquareFeet, totalCoveredSlabSquareFeet, keepFooterAroundNoPour: input.keepFooterAroundNoPour !== false, footerYardage, totalYardage, additionalConcreteYardage, wastePercent, wasteOverageYardage, finalOrderYardage, recommendedOrderYardage: Math.ceil(finalOrderYardage) };
+  const slabYardage = mainSlabYardage + insideAdjustment + additionalSectionYardage + thirdInsideAdjustment + thirdAdditionalSectionYardage - noPourYardage;
+  const netMainSquareFeet = slabSquareFeet - noPourSquareFeet - (secondarySectionType === "inside" ? secondarySquareFeet : 0) - (thirdSectionType === "inside" ? thirdSquareFeet : 0);
+  const totalCoveredSlabSquareFeet = slabSquareFeet - noPourSquareFeet + (secondarySectionType === "additional" ? secondarySquareFeet : 0) + (thirdSectionType === "additional" ? thirdSquareFeet : 0);
+  const additionalFooterDepth = Math.max(footerDepth - input.thickness, 0); const outerPerimeter = 2 * (length + width); const footerPerimeter = input.keepFooterAroundNoPour === false && noPourDimensions ? Math.max(0, outerPerimeter - noPourLength - noPourWidth) : outerPerimeter; const footerYardage = (footerPerimeter * (footerWidth / 12) * (additionalFooterDepth / 12)) / 27;
+  const thirdFooterBaseThickness = thirdSectionType === "inside" ? input.thickness : thirdThickness; const thirdFooterYardage = thirdFooters && thirdSquareFeet ? (2 * (thirdLength + thirdWidth) * (thirdFooterWidth / 12) * (Math.max(thirdFooterDepth - thirdFooterBaseThickness, 0) / 12)) / 27 : 0; const totalYardage = slabYardage + footerYardage + thirdFooterYardage;
+  const additionalConcreteYardage = input.additionalConcreteYardage || 0; const thirdAdditionalConcreteYardage = input.thirdAdditionalConcreteYardage || 0; const wastePercent = input.wastePercent || 0; const wasteOverageYardage = (totalYardage + additionalConcreteYardage + thirdAdditionalConcreteYardage) * wastePercent / 100; const finalOrderYardage = totalYardage + additionalConcreteYardage + thirdAdditionalConcreteYardage + wasteOverageYardage;
+  return { length, width, footerWidth, footerDepth, additionalFooterDepth, slabSquareFeet, slabYardage, padYardage: slabYardage, mainSlabYardage, secondaryDimensions, secondaryThickness, secondarySectionType, secondarySquareFeet, secondaryAreaYardage, thirdDimensions, thirdThickness, thirdSectionType, thirdSquareFeet, thirdAreaYardage, thirdFooters, thirdFooterYardage, thirdAdditionalConcreteYardage, noPourDimensions, noPourThickness, noPourSquareFeet, netMainSquareFeet, totalCoveredSlabSquareFeet, keepFooterAroundNoPour: input.keepFooterAroundNoPour !== false, footerYardage, totalYardage, additionalConcreteYardage, wastePercent, wasteOverageYardage, finalOrderYardage, recommendedOrderYardage: Math.ceil(finalOrderYardage) };
 };
 
 const requireRole = (...allowed: Role[]) => (req: Request, res: Response, next: NextFunction) => {
@@ -303,6 +310,11 @@ export function createApp(store: DataStore, esign: EsignService = new Configured
     secondaryDimensions: z.string().trim().max(40).default(""),
     secondaryThickness: z.coerce.number().min(0).max(48).default(0),
     secondarySectionType: z.enum(["inside", "additional"]).default("inside"),
+    thirdDimensions: z.string().trim().max(40).default(""),
+    thirdThickness: z.coerce.number().min(0).max(48).default(0),
+    thirdSectionType: z.enum(["inside", "additional"]).default("inside"),
+    thirdFooters: z.string().trim().max(40).default(""),
+    thirdAdditionalConcreteYardage: z.coerce.number().nonnegative().default(0),
     noPourDimensions: z.string().trim().max(40).default(""),
     noPourThickness: z.coerce.number().min(0).max(48).default(0),
     keepFooterAroundNoPour: z.boolean().default(true),

@@ -123,6 +123,17 @@ describe("BullShark portal API", () => {
     expect(twoZone.body.totalYardage).toBeCloseTo(39.6296, 3);
     expect(twoZone.body.finalOrderYardage).toBeCloseTo(43.5926, 3);
     expect(twoZone.body.recommendedOrderYardage).toBe(44);
+    const thirdZone = await request(app).post("/api/yardage").set(headers("admin", "admin-1")).send({
+      status: "ACTIVE", state: "TX", concreteCompany: "Cemex", client: "Three section slab",
+      dimensions: "50x30", thickness: 6, secondaryDimensions: "20x30", secondaryThickness: 4, secondarySectionType: "additional",
+      thirdDimensions: "12x20", thirdThickness: 4, thirdSectionType: "inside", thirdFooters: "12x12", thirdAdditionalConcreteYardage: 1,
+      noPourDimensions: "8x10", noPourThickness: 6, keepFooterAroundNoPour: true, footers: "12x18", additionalConcreteYardage: 0, wastePercent: 10,
+    });
+    expect(thirdZone.status).toBe(201);
+    expect(thirdZone.body.thirdAreaYardage).toBeCloseTo(2.963, 3);
+    expect(thirdZone.body.thirdFooterYardage).toBeCloseTo(1.185, 3);
+    expect(thirdZone.body.totalYardage).toBeCloseTo(39.333, 3);
+    expect(thirdZone.body.finalOrderYardage).toBeCloseTo(44.367, 3);
     const invalidSecondary = await request(app).post("/api/yardage").set(headers("admin", "admin-1")).send({ status: "ACTIVE", state: "TX", concreteCompany: "Cemex", client: "Invalid slab", dimensions: "50x30", thickness: 6, secondaryDimensions: "60x30", secondaryThickness: 4, footers: "12x12" });
     expect(invalidSecondary.status).toBe(400);
     const denied = await request(app).get("/api/yardage").set(headers("client", "client-1"));
