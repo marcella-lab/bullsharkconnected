@@ -1190,6 +1190,12 @@ html, body, #root { width: 100%; max-width: 100%; min-height: 100%; background: 
   gap: 12px;
 }
 
+/* This matches the legacy fourth-card selector above so it cannot reintroduce
+   a phantom third text column for the spending record markup. */
+.project-detail-square-grid .detail-square-card:nth-child(4) .project-spending-list .expense-record {
+  grid-template-columns: minmax(92px, auto) minmax(0, 1fr) auto;
+}
+
 .project-detail-square-grid .project-spending-list .expense-record > strong,
 .project-detail-square-grid .invoice-log-list .invoice-record > div > strong {
   padding-top: 2px;
@@ -1202,6 +1208,10 @@ html, body, #root { width: 100%; max-width: 100%; min-height: 100%; background: 
   grid-template-columns: minmax(0, 1fr);
   gap: 4px;
   min-width: 0;
+}
+
+.project-detail-square-grid .detail-square-card:nth-child(4) .project-spending-list .expense-record > span {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .project-detail-square-grid .project-spending-list .expense-record b,
