@@ -895,3 +895,331 @@ html, body, #root { width: 100%; max-width: 100%; min-height: 100%; background: 
 .viper-note strong { color: #203f35; white-space: nowrap; }
 @media (max-width: 960px) { .viper-calculator-grid { grid-template-columns: 1fr 1fr; } .viper-card-featured { grid-column: span 2; min-height: 0; } }
 @media (max-width: 650px) { .viper-calculator-hero, .viper-note { align-items: stretch; flex-direction: column; } .viper-launch { width: 100%; justify-content: center; } .viper-calculator-grid { grid-template-columns: 1fr; } .viper-card-featured { grid-column: auto; } .viper-card { min-height: 0; } .viper-note { gap: 4px; } }
+
+/* Final phone pass. Keep this last so older page-specific rules cannot restore
+   desktop grids after a responsive rule has already simplified the layout. */
+@media (max-width: 700px) {
+  .page-content {
+    padding: 20px 14px max(48px, env(safe-area-inset-bottom));
+  }
+
+  .topbar {
+    height: 64px;
+    padding-inline: 14px;
+  }
+
+  .topbar .button,
+  .menu-button,
+  .icon-button {
+    min-width: 42px;
+    min-height: 42px;
+  }
+
+  .preview-bar {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 9px;
+    margin-bottom: 20px;
+  }
+
+  .preview-bar label {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    margin-left: 0;
+  }
+
+  .preview-bar select {
+    width: 100%;
+    min-width: 0;
+    min-height: 42px;
+  }
+
+  .page-heading,
+  .page-actions,
+  .panel-title,
+  .panel-heading {
+    min-width: 0;
+  }
+
+  .page-heading h1,
+  .panel-heading h2,
+  .project-identity h2,
+  .assigned-card h2,
+  .contract-card h2,
+  .potential-card h2 {
+    overflow-wrap: anywhere;
+  }
+
+  .heading-actions,
+  .page-actions,
+  .form-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    width: 100%;
+  }
+
+  .heading-actions > .button,
+  .page-actions > .button,
+  .form-actions > .button,
+  .sticky-save .button {
+    width: 100%;
+    min-height: 44px;
+    justify-content: center;
+  }
+
+  .panel-heading {
+    align-items: stretch;
+    flex-direction: column;
+    padding: 16px;
+  }
+
+  .panel-heading > .button,
+  .panel-heading > div:last-child:not(:first-child) .button {
+    width: 100%;
+  }
+
+  .supplier-panel {
+    overflow: hidden;
+  }
+
+  .supplier-form {
+    grid-template-columns: minmax(0, 1fr);
+    padding-inline: 16px;
+  }
+
+  .supplier-form input,
+  .supplier-form select,
+  .supplier-form .button {
+    width: 100%;
+    min-width: 0;
+    min-height: 44px;
+  }
+
+  .table-panel,
+  .admin-table-panel,
+  .table-wrap,
+  .yardage-table,
+  .finance-table {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .table-actions {
+    flex-wrap: wrap;
+    white-space: normal;
+  }
+
+  .modal-backdrop {
+    align-items: end;
+    justify-items: stretch;
+    padding: 0;
+  }
+
+  .modal,
+  .modal-wide {
+    width: 100%;
+    max-width: none;
+    max-height: 94dvh;
+    border-right: 0;
+    border-bottom: 0;
+    border-left: 0;
+    border-radius: 18px 18px 0 0;
+  }
+
+  .modal-header {
+    min-height: 66px;
+    padding: 13px 14px;
+  }
+
+  .modal-body {
+    padding: 16px 14px max(18px, env(safe-area-inset-bottom));
+  }
+
+  .form-grid,
+  .client-information-grid,
+  .client-information-form,
+  .media-file-edit,
+  .milestone-form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  input,
+  select,
+  textarea,
+  .field input,
+  .field select,
+  .field textarea {
+    max-width: 100%;
+  }
+
+  .field input,
+  .field select,
+  .form-grid input,
+  .form-grid select {
+    min-height: 44px;
+  }
+
+  .project-notes-media-grid,
+  .project-detail-square-grid,
+  .jobs-trades-section .detail-job-grid,
+  .contract-grid,
+  .potential-grid,
+  .assigned-grid,
+  .client-job-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .jobs-trades-section .detail-job-grid {
+    justify-content: stretch;
+  }
+
+  .detail-job-grid .detail-card {
+    width: 100%;
+    max-width: none;
+  }
+
+  .project-detail-square-grid {
+    columns: 1;
+  }
+
+  .project-detail-square-grid .square-scroll-list article,
+  .project-detail-square-grid .detail-square-card:nth-child(4) .square-scroll-list article {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .project-detail-square-grid .square-scroll-list article > span {
+    grid-column: 1 / -1;
+  }
+
+  .milestone-list article {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .milestone-list article > strong {
+    grid-column: auto;
+  }
+
+  .schedule-list article,
+  .sub-calendar article {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .schedule-list article > *,
+  .schedule-list article .button {
+    grid-column: auto;
+    grid-row: auto;
+  }
+
+  .schedule-list article .button {
+    width: 100%;
+  }
+
+  .client-project > header,
+  .client-project-summary {
+    min-width: 0;
+  }
+
+  .client-project-summary {
+    grid-template-columns: auto minmax(0, 1fr) !important;
+  }
+
+  .assigned-facts,
+  .job-facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .action-menu-portal,
+  .project-menu > div,
+  .item-actions > div,
+  .detail-actions > div {
+    max-width: calc(100vw - 24px);
+  }
+
+  .toast-stack {
+    right: 12px;
+    bottom: max(12px, env(safe-area-inset-bottom));
+    left: 12px;
+    width: auto;
+  }
+
+  .toast {
+    width: 100%;
+  }
+}
+
+@media (max-width: 430px) {
+  .metric-grid,
+  .client-metrics,
+  .work-status-strip,
+  .project-stack .project-summary,
+  .assigned-facts,
+  .job-facts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .metric-card {
+    min-height: 100px;
+  }
+
+  .detail-media-card .detail-photo-strip,
+  .project-photo-gallery-bottom .detail-photo-strip {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .client-project-summary {
+    grid-template-columns: minmax(0, 1fr) !important;
+    text-align: left;
+  }
+
+  .client-progress-wheel {
+    grid-row: auto;
+  }
+}
+
+/* Financial record rows use named layouts instead of a card-position selector.
+   Descriptions and dates can grow independently without colliding. */
+.project-detail-square-grid .project-spending-list .expense-record,
+.project-detail-square-grid .invoice-log-list .invoice-record {
+  grid-template-columns: minmax(92px, auto) minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 12px;
+}
+
+.project-detail-square-grid .project-spending-list .expense-record > strong,
+.project-detail-square-grid .invoice-log-list .invoice-record > div > strong {
+  padding-top: 2px;
+  white-space: nowrap;
+}
+
+.project-detail-square-grid .project-spending-list .expense-record > span,
+.project-detail-square-grid .invoice-log-list .invoice-record > span {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 4px;
+  min-width: 0;
+}
+
+.project-detail-square-grid .project-spending-list .expense-record b,
+.project-detail-square-grid .invoice-log-list .invoice-record b,
+.project-detail-square-grid .project-spending-list .expense-record small,
+.project-detail-square-grid .invoice-log-list .invoice-record small {
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+@media (max-width: 700px) {
+  .project-detail-square-grid .project-spending-list .expense-record,
+  .project-detail-square-grid .invoice-log-list .invoice-record {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .project-detail-square-grid .project-spending-list .expense-record > span,
+  .project-detail-square-grid .invoice-log-list .invoice-record > span {
+    grid-column: 1 / -1;
+  }
+}
