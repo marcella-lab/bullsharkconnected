@@ -67,7 +67,7 @@ describe("BullShark portal API", () => {
     const first = await request(app)
       .post("/api/jobs/job-3/interests")
       .set(headers("subcontractor", "contractor-1"))
-      .send({ phone: "210-555-0148", availability: "Available September 8–22", notes: "Three-person steel crew." });
+      .send({ phone: "210-555-0148", availability: "Available September 8â22", notes: "Three-person steel crew." });
     const repeat = await request(app)
       .post("/api/jobs/job-3/interests")
       .set(headers("subcontractor", "contractor-1"))
@@ -153,6 +153,25 @@ describe("BullShark portal API", () => {
     expect(subcontractorView.body.users[0].jobIds).toContain("job-1");
     const denied = await request(app).delete("/api/jobs/job-1").set(headers("client", "client-1"));
     expect(denied.status).toBe(403);
+  });
+
+  it("shows a project and its jobs to a subcontractor assigned at the project level", async () => {
+    const app = createApp(new MemoryDataStore());
+    expect((await request(app).patch("/api/projects/project-1/access").set(headers("admin", "admin-1")).send({ userIds: ["contractor-2"] })).status).toBe(200);
+    const view = await request(app).get("/api/bootstrap").set(headers("subcontractor", "contractor-2"));
+    expect(view.body.projects.map((project: { id: string }) => project.id)).toContain("project-1");
+    expect(view.body.jobs.some((job: { projectId: string }) => job.projectId === "project-1")).toBe(true);
+  });
+
+  it("shares completed job status with every permitted user", async () => {
+    const app = createApp(new MemoryDataStore());
+    const completed = await request(app).patch("/api/jobs/job-1/progress").set(headers("admin", "admin-1")).send({ stage: "Complete", progress: 100, status: "scheduled" });
+    expect(completed.status).toBe(200);
+    expect(completed.body).toMatchObject({ status: "complete", progress: 100 });
+    const client = await request(app).get("/api/bootstrap").set(headers("client", "client-1"));
+    const subcontractor = await request(app).get("/api/bootstrap").set(headers("subcontractor", "contractor-1"));
+    expect(client.body.jobs.find((job: { id: string }) => job.id === "job-1").status).toBe("complete");
+    expect(subcontractor.body.jobs.find((job: { id: string }) => job.id === "job-1").status).toBe("complete");
   });
 
   it("lets project managers add projects but blocks changes to existing records", async () => {
