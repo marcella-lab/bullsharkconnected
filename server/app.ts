@@ -152,6 +152,7 @@ const filteredData = (data: PortalData, role: Role, viewerId: string): PortalDat
         ...job,
         scope: "",
         price: 0,
+        supplierIds: undefined,
         contractorId: undefined,
         contractorName: undefined,
         subcontractorInstructions: undefined,
@@ -638,6 +639,20 @@ export function createApp(store: DataStore, esign: EsignService = new Configured
     });
     res.json({ ok: true });
   }));
+  app.patch("/api/jobs/:jobId/suppliers", requireRole("admin"), asyncRoute(async (req, res) => {
+    const input = z.object({ supplierIds: z.array(z.string().trim().min(1)).max(200) }).parse(req.body);
+    const job = await store.update((data) => {
+      const item = data.jobs.find((candidate) => candidate.id === req.params.jobId);
+      if (!item) throw Object.assign(new Error("Job not found."), { status: 404 });
+      const supplierIds = [...new Set(input.supplierIds)];
+      if (supplierIds.some((supplierId) => !(data.concreteSuppliers || []).some((supplier) => supplier.id === supplierId))) throw Object.assign(new Error("One or more selected suppliers were not found."), { status: 400 });
+      item.supplierIds = supplierIds;
+      audit(data, "Job suppliers updated", `${item.number}: ${supplierIds.length} suppliers assigned.`);
+      return item;
+    });
+    res.json(job);
+  }));
+
   app.patch("/api/jobs/:jobId", requireRole("admin"), asyncRoute(async (req, res) => { const input = jobEditSchema.parse(req.body); const job = await store.update((data) => { const item = data.jobs.find((candidate) => candidate.id === req.params.jobId); const client = data.clients.find((candidate) => candidate.id === input.clientId); const contractor = input.contractorId ? data.contractors.find((candidate) => candidate.id === input.contractorId) : undefined; if (!item) throw Object.assign(new Error("Job not found."), { status: 404 }); if (!client) throw Object.assign(new Error("Client not found."), { status: 404 }); if (input.contractorId && !contractor) throw Object.assign(new Error("Subcontractor not found."), { status: 404 }); const { scheduleStart, scheduleEnd, ...updates } = input; Object.assign(item, updates, { scheduleStart: scheduleStart || undefined, scheduleEnd: scheduleEnd || undefined, contractorId: contractor?.id, contractorName: contractor?.company, clientId: client.id, clientName: client.name }); normalizeJobCompletion(item); const clientUser = userById(data, client.id); if (clientUser) clientUser.projectIds = [...new Set([...clientUser.projectIds, item.projectId])]; if (contractor) subcontractorUsersFor(data, contractor.id).forEach((contractorUser) => { contractorUser.projectIds = [...new Set([...contractorUser.projectIds, item.projectId])]; contractorUser.jobIds = [...new Set([...contractorUser.jobIds, item.id])]; }); refreshProject(data, item.projectId); audit(data, "Job updated", `${item.number} job details updated.`); notifyJobParticipants(data, item, "Job updated", `${item.title} has been updated.`); return item; }); res.json(job); }));
   app.delete("/api/jobs/:jobId", requireRole("admin"), asyncRoute(async (req, res) => { await store.update((data) => { const index = data.jobs.findIndex((item) => item.id === req.params.jobId); if (index < 0) throw Object.assign(new Error("Job not found."), { status: 404 }); const [job] = data.jobs.splice(index, 1); data.contracts = data.contracts.filter((contract) => contract.jobId !== job.id); data.files = data.files?.map((file) => ({ ...file, jobIds: file.jobIds.filter((jobId) => jobId !== job.id) })); data.users?.forEach((user) => { user.jobIds = user.jobIds.filter((jobId) => jobId !== job.id); }); audit(data, "Job deleted", `${job.number} Â· ${job.title} deleted.`); }); res.json({ ok: true }); }));
   app.delete("/api/projects/:projectId", requireRole("admin"), asyncRoute(async (req, res) => { await store.update((data) => { const index = data.projects.findIndex((item) => item.id === req.params.projectId); if (index < 0) throw Object.assign(new Error("Project not found."), { status: 404 }); const [project] = data.projects.splice(index, 1); const jobIds = new Set(data.jobs.filter((job) => job.projectId === project.id).map((job) => job.id)); data.jobs = data.jobs.filter((job) => job.projectId !== project.id); data.contracts = data.contracts.filter((contract) => contract.projectId !== project.id); data.files = data.files?.filter((file) => file.projectId !== project.id); data.users?.forEach((user) => { user.projectIds = user.projectIds.filter((projectId) => projectId !== project.id); user.jobIds = user.jobIds.filter((jobId) => !jobIds.has(jobId)); }); audit(data, "Project deleted", `${project.number} Â· ${project.name} and its jobs deleted.`); }); res.json({ ok: true }); }));
