@@ -310,6 +310,7 @@ export function createApp(store: DataStore, esign: EsignService = new Configured
   app.delete("/api/users/:userId", requireRole("admin"), asyncRoute(async (req, res) => { await store.update((data) => { const userId = String(req.params.userId); const index = data.users!.findIndex((item) => item.id === userId); if (index < 0) throw Object.assign(new Error("User not found."), { status: 404 }); const user = data.users![index]; if (user.id === req.viewer.id) throw Object.assign(new Error("You cannot delete your own account."), { status: 400 }); if (user.role === "admin" && data.users!.filter((item) => item.role === "admin" && item.active).length <= 1) throw Object.assign(new Error("At least one active Admin account must remain."), { status: 400 }); data.users!.splice(index, 1); audit(data, "User deleted", `${user.email} login access deleted.`); }); res.json({ ok: true }); }));
 
   const yardageSchema = z.object({
+    label: z.string().trim().max(160).default(""),
     status: z.enum(["ACTIVE", "INACTIVE", "POTENTIAL", "COMPLETED"]),
     state: z.string().trim().max(8).default(""),
     concreteCompany: z.string().trim().max(160).default(""),
@@ -351,6 +352,20 @@ export function createApp(store: DataStore, esign: EsignService = new Configured
     const input = yardageSchema.partial().parse(req.body); const row = await store.update((data) => { const existing = data.yardageRows!.find((item) => item.id === req.params.rowId); if (!existing) throw Object.assign(new Error("Calculator row not found."), { status: 404 }); const merged = yardageSchema.parse({ ...existing, ...input }); if (merged.projectId && !data.projects.some((project) => project.id === merged.projectId)) throw Object.assign(new Error("Selected project was not found."), { status: 404 }); const item = makeYardageRow(merged, req.viewer.id, existing); Object.assign(existing, item); audit(data, "Yardage row updated", `${existing.client} calculator values changed.`); return existing; }); res.json(row);
   }));
   app.delete("/api/yardage/:rowId", requireRole("admin"), asyncRoute(async (req, res) => { await store.update((data) => { const index = data.yardageRows!.findIndex((item) => item.id === req.params.rowId); if (index < 0) throw Object.assign(new Error("Calculator row not found."), { status: 404 }); const [removed] = data.yardageRows!.splice(index, 1); audit(data, "Yardage row deleted", `${removed.client} calculator row deleted.`); }); res.json({ ok: true }); }));
+  app.patch("/api/yardage/suppliers/:supplierId", requireRole("admin"), asyncRoute(async (req, res) => {
+    const input = supplierSchema.parse(req.body);
+    const supplier = await store.update((data) => {
+      const item = data.concreteSuppliers!.find((entry) => entry.id === req.params.supplierId);
+      if (!item) throw Object.assign(new Error("Supplier not found."), { status: 404 });
+      if (data.concreteSuppliers!.some((entry) => entry.id !== item.id && entry.company.toLowerCase() === input.company.toLowerCase())) throw Object.assign(new Error("A supplier with this company name already exists."), { status: 409 });
+      const oldCompany = item.company;
+      Object.assign(item, input);
+      for (const row of data.yardageRows || []) if (row.concreteCompany.trim().toLowerCase() === oldCompany.trim().toLowerCase()) row.concreteCompany = item.company;
+      audit(data, "Supplier updated", item.company);
+      return item;
+    });
+    res.json(supplier);
+  }));
   app.post("/api/yardage/suppliers", requireRole("admin"), asyncRoute(async (req, res) => { const input = supplierSchema.parse(req.body); const supplier = await store.update((data) => { const existing = data.concreteSuppliers!.find((item) => item.company.toLowerCase() === input.company.toLowerCase()); const item = { id: existing?.id || id("supplier"), ...input, email: input.email || undefined }; if (existing) Object.assign(existing, item); else data.concreteSuppliers!.unshift(item); audit(data, existing ? "Supplier updated" : "Supplier created", item.company); return existing || item; }); res.status(201).json(supplier); }));
 
   const uploadSchema = z.object({ projectId: z.string(), jobIds: z.array(z.string()).default([]), name: z.string().min(1).max(200), mimeType: z.string().min(1), contentBase64: z.string().min(1), category: z.enum(["Plans", "Engineering", "Contract", "Estimate", "Permit", "Survey", "Photos", "Invoice", "Change Order", "Specifications", "Other"]).default("Other"), description: z.string().max(1000).default(""), captureDate: z.string().date().optional().or(z.literal("")), geoLatitude: z.coerce.number().min(-90).max(90).optional(), geoLongitude: z.coerce.number().min(-180).max(180).optional(), visibility: z.enum(["admin", "client", "assigned_subcontractor", "client_and_assigned_subcontractor", "project_access"] as const) });
@@ -603,7 +618,7 @@ export function createApp(store: DataStore, esign: EsignService = new Configured
     res.status(201).json(job);
   }));
 
-  const jobEditSchema = z.object({ title: z.string().trim().min(2), scope: z.string().trim().min(4), location: z.string().trim().min(2), price: z.coerce.number().nonnegative(), stage: z.string().trim().min(2), progress: z.coerce.number().min(0).max(100).optional(), status: z.enum(["planned", "scheduled", "in_progress", "complete", "on_hold"]).optional(), scheduleStart: z.string().date().optional().or(z.literal("")), scheduleEnd: z.string().date().optional().or(z.literal("")), clientId: z.string().min(1), contractorId: z.string().optional().or(z.literal("")), subcontractorInstructions: z.string().trim().max(5000).optional() });
+  const jobEditSchema = z.object({ title: z.string().trim().min(2), scope: z.string().trim().min(4), location: z.string().trim().min(2), price: z.coerce.number().nonnegative(), stage: z.string().trim().min(2), progress: z.coerce.number().min(0).max(100).optional(), status: z.enum(["planned", "scheduled", "in_progress", "complete", "on_hold"]).optional(), scheduleStart: z.string().date().optional().or(z.literal("")), scheduleEnd: z.string().date().optional().or(z.literal("")), clientId: z.string().min(1), contractorId: z.string().optional().or(z.literal("")), materialList: z.string().trim().max(20000).optional(), subcontractorInstructions: z.string().trim().max(5000).optional() });
   app.patch("/api/jobs/:jobId/access", requireRole("admin"), asyncRoute(async (req, res) => {
     const input = accessSchema.parse(req.body);
     await store.update((data) => {

@@ -12,6 +12,7 @@ type Mutate = <T>(
 ) => Promise<T>;
 type Draft = Pick<
   YardageRow,
+  | "label"
   | "status"
   | "state"
   | "concreteCompany"
@@ -36,6 +37,7 @@ type Draft = Pick<
   | "notes"
 >;
 const blank: Draft = {
+  label: "",
   status: "ACTIVE",
   state: "",
   concreteCompany: "",
@@ -136,12 +138,15 @@ const heads = [
 export function YardagePage({
   data,
   mutate,
+  projectId,
 }: {
   data: BootstrapPayload;
   mutate: Mutate;
+  projectId?: string;
 }) {
+  const initialDraft = { ...blank, ...(projectId ? { projectId, client: data.projects.find((project) => project.id === projectId)?.clientName || data.projects.find((project) => project.id === projectId)?.name || "" } : {}) };
   const [rows, setRows] = useState<YardageRow[]>(data.yardageRows || []),
-    [draft, setDraft] = useState<Draft>(blank),
+    [draft, setDraft] = useState<Draft>(initialDraft),
     [editing, setEditing] = useState<string | null>(null);
   const [saveError, setSaveError] = useState("");
   const [search, setSearch] = useState(""),
@@ -188,13 +193,14 @@ export function YardagePage({
         draft,
       );
       setRows((old) => editing ? old.map((r) => (r.id === row.id ? row : r)) : [row, ...old]);
-      setDraft(blank);
+      setDraft(initialDraft);
       setEditing(null);
     } catch (error) { setSaveError(error instanceof Error ? error.message : "Unable to save this calculator row."); }
   };
   const edit = (r: YardageRow) => {
     setEditing(r.id);
     setDraft({
+      label: r.label || "",
       status: r.status,
       state: r.state,
       concreteCompany: r.concreteCompany,
@@ -223,7 +229,7 @@ export function YardagePage({
   const duplicate = async (r: YardageRow) => {
     const copy = await mutate<YardageRow>("/api/yardage", "POST", {
       ...r,
-      client: `${r.client} (copy)`,
+      label: `${r.label || "Concrete reference sheet"} (copy)`,
     });
     setRows((old) => [copy, ...old]);
   };
@@ -319,7 +325,7 @@ export function YardagePage({
               className="button button-small"
               onClick={() => {
                 setEditing(null);
-                setDraft(blank);
+                setDraft(initialDraft);
               }}
             >
               Cancel edit
@@ -327,6 +333,7 @@ export function YardagePage({
           )}
         </div>
         <form className="yardage-form" onSubmit={save}>
+          <label>Reference sheet label<input value={draft.label || ""} onChange={(e) => put("label", e.target.value)} maxLength={160} placeholder="e.g. Main slab, porch, driveway" /></label>
           <select
             value={draft.status}
             onChange={(e) => put("status", e.target.value as YardageStatus)}
@@ -460,7 +467,7 @@ export function YardagePage({
                     <strong>{r.status}</strong>
                   </td>
                   <td>{r.state}</td>
-                  <td>{r.concreteCompany}</td>
+                  <td>{r.concreteCompany}{r.label && <small style={{ display: "block" }}>{r.label}</small>}</td>
                   <td>
                     {r.projectId ? (
                       <a
