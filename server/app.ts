@@ -367,6 +367,32 @@ export function createApp(store: DataStore, esign: EsignService = new Configured
     });
     res.json(supplier);
   }));
+  app.patch("/api/yardage/suppliers/:supplierId/projects", requireRole("admin"), asyncRoute(async (req, res) => {
+    const input = z.object({ projectIds: z.array(z.string().min(1)).max(1000) }).parse(req.body);
+    const result = await store.update((data) => {
+      const supplier = data.concreteSuppliers!.find((item) => item.id === req.params.supplierId);
+      if (!supplier) throw Object.assign(new Error("Supplier not found."), { status: 404 });
+      const selected = new Set(input.projectIds);
+      if ([...selected].some((projectId) => !data.projects.some((project) => project.id === projectId))) throw Object.assign(new Error("Selected project not found."), { status: 400 });
+      for (const project of data.projects) {
+        const others = (project.supplierIds || []).filter((supplierId) => supplierId !== supplier.id);
+        project.supplierIds = selected.has(project.id) ? [...others, supplier.id] : others;
+      }
+      audit(data, "Supplier project assignments updated", `${supplier.company}: ${selected.size} projects.`);
+      return { projectIds: [...selected] };
+    });
+    res.json(result);
+  }));
+  app.delete("/api/yardage/suppliers/:supplierId", requireRole("admin"), asyncRoute(async (req, res) => {
+    await store.update((data) => {
+      const index = data.concreteSuppliers!.findIndex((item) => item.id === req.params.supplierId);
+      if (index < 0) throw Object.assign(new Error("Supplier not found."), { status: 404 });
+      const [supplier] = data.concreteSuppliers!.splice(index, 1);
+      for (const record of [...data.projects, ...data.jobs]) if (record.supplierIds) record.supplierIds = record.supplierIds.filter((supplierId) => supplierId !== supplier.id);
+      audit(data, "Supplier deleted", supplier.company);
+    });
+    res.json({ ok: true });
+  }));
   app.post("/api/yardage/suppliers", requireRole("admin"), asyncRoute(async (req, res) => { const input = supplierSchema.parse(req.body); const supplier = await store.update((data) => { const existing = data.concreteSuppliers!.find((item) => item.company.toLowerCase() === input.company.toLowerCase()); const item = { id: existing?.id || id("supplier"), ...input, email: input.email || undefined }; if (existing) Object.assign(existing, item); else data.concreteSuppliers!.unshift(item); audit(data, existing ? "Supplier updated" : "Supplier created", item.company); return existing || item; }); res.status(201).json(supplier); }));
 
   const uploadSchema = z.object({ projectId: z.string(), jobIds: z.array(z.string()).default([]), name: z.string().min(1).max(200), mimeType: z.string().min(1), contentBase64: z.string().min(1), category: z.enum(["Plans", "Engineering", "Contract", "Estimate", "Permit", "Survey", "Photos", "Invoice", "Change Order", "Specifications", "Other"]).default("Other"), description: z.string().max(1000).default(""), captureDate: z.string().date().optional().or(z.literal("")), geoLatitude: z.coerce.number().min(-90).max(90).optional(), geoLongitude: z.coerce.number().min(-180).max(180).optional(), visibility: z.enum(["admin", "client", "assigned_subcontractor", "client_and_assigned_subcontractor", "project_access"] as const) });
