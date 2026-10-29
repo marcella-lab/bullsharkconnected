@@ -78,6 +78,7 @@ export interface Project {
   workStatus?: ProjectWorkStatus;
   fieldNotes?: string;
   milestones?: ProjectMilestone[];
+  supplierIds?: string[];
 }
 
 export interface Job {

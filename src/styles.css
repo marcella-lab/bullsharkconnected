@@ -1233,3 +1233,5 @@ html, body, #root { width: 100%; max-width: 100%; min-height: 100%; background: 
     grid-column: 1 / -1;
   }
 }
+
+.supplier-list .supplier-actions { position: absolute; top: 6px; right: 6px; padding: 0; background: transparent; }
