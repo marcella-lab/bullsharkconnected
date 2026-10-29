@@ -103,6 +103,7 @@ export interface Job {
   privateNotes?: string;
   subcontractorInstructions?: string;
   materialList?: string;
+  supplierIds?: string[];
 }
 
 export interface Contract {
