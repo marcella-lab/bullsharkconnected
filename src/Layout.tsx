@@ -1,7 +1,9 @@
 import {
   Activity,
   BriefcaseBusiness,
+  Building2,
   CalendarDays,
+  ChevronRight,
   ClipboardCheck,
   FileSignature,
   FolderKanban,
@@ -89,6 +91,7 @@ export function Layout({
   const [mobileOpen, setMobileOpen] = useState(false);
   const nav = navByRole[role];
   const initials = viewerName.split(" ").map((part) => part[0]).slice(0, 2).join("");
+  const currentLabel = nav.find((item) => item.id === view)?.label || view;
   const chooseView = (id: string) => {
     onViewChange(id);
     setMobileOpen(false);
@@ -102,7 +105,12 @@ export function Layout({
           <span><strong>BULLSHARK</strong><small>CONNECTED</small></span>
           <button className="mobile-close" type="button" aria-label="Close menu" onClick={() => setMobileOpen(false)}><X /></button>
         </div>
-        <div className="signed-in"><span>{role === "admin" || role === "project_manager" ? "Signed in as" : "Viewing as"}</span><strong>{roleLabels[role]}</strong></div>
+        <div className="workspace-card">
+          <span className="workspace-icon"><Building2 size={17} /></span>
+          <span><strong>Bullshark Contracting</strong><small>{roleLabels[role]} workspace</small></span>
+          <i aria-hidden="true" />
+        </div>
+        <div className="nav-label">WORKSPACE</div>
         <nav aria-label="Main navigation">
           {nav.map((item) => {
             const Icon = item.icon;
@@ -122,8 +130,8 @@ export function Layout({
       <main className="main-shell">
         <header className="topbar">
           <button type="button" className="menu-button" aria-label="Open menu" onClick={() => setMobileOpen(true)}><Menu /></button>
-          <div className="search-shell"><Search size={17} /><input aria-label="Search" placeholder="Search projects, jobs, people…" /></div>
-          <button className="button button-small" onClick={onSignOut}>Sign out</button>
+          <div className="topbar-location"><span>Workspace</span><ChevronRight size={14} /><strong>{currentLabel}</strong></div>
+          <div className="topbar-actions"><span className="topbar-status"><i aria-hidden="true" /> Team workspace</span><button className="button button-small" onClick={onSignOut}>Sign out</button><span className="topbar-avatar" aria-label={viewerName}>{initials}</span></div>
         </header>
         <div className="page-content">{children}</div>
       </main>
