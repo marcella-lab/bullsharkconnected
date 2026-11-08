@@ -1235,3 +1235,184 @@ html, body, #root { width: 100%; max-width: 100%; min-height: 100%; background: 
 }
 
 .supplier-list .supplier-actions { position: absolute; top: 6px; right: 6px; padding: 0; background: transparent; }
+
+/* Viper Steel Hub inspired workspace palette and navigation. */
+:root {
+  --navy-950: #e5e5e5;
+  --navy-900: #1d241f;
+  --navy-800: #26342a;
+  --cyan-500: #628668;
+  --cyan-100: #edf3e9;
+  --green-500: #4d8058;
+  --border: #e1e6de;
+  --muted: #7a857c;
+  --surface-soft: #f7f8f5;
+  --text-strong: #26342a;
+  --text-body: #526153;
+  --text-muted: #7b857e;
+  --accent: #1d241f;
+  --accent-dark: #3f704b;
+  --accent-soft: #edf3e9;
+  --line: #d8dfd5;
+  --line-strong: #e1e6de;
+  --radius-card: 9px;
+  --radius-control: 6px;
+  --shadow-card: 0 4px 16px rgba(34, 48, 37, .055);
+}
+
+html, body, #root { min-height: 100%; background: #e5e5e5 !important; }
+body { color: #26342a; }
+.app-shell { background: #e5e5e5; }
+.sidebar {
+  padding: 26px 17px 18px;
+  color: #566458;
+  background: #fff;
+  border-right: 1px solid #e3e7e0;
+  box-shadow: 2px 0 12px rgba(36, 49, 38, .025);
+}
+.brand { min-height: 44px; padding: 0 8px; gap: 11px; }
+.brand-mark {
+  border-color: #1d241f;
+  border-radius: 8px;
+  color: #a9d4aa;
+  background: #1d241f;
+  box-shadow: none;
+}
+.brand strong { color: #26342a; letter-spacing: .1em; }
+.brand small { color: #7a8d75; }
+.workspace-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 31px 2px 25px;
+  padding: 11px 9px;
+  border: 1px solid #e4e8e1;
+  border-radius: 7px;
+  background: #fff;
+}
+.workspace-icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  border-radius: 6px;
+  color: #4d704e;
+  background: #edf3e9;
+}
+.workspace-card > span:nth-child(2) { min-width: 0; display: grid; gap: 4px; }
+.workspace-card strong { color: #344338; font-size: 11px; font-weight: 700; }
+.workspace-card small { color: #899389; font-size: 9px; }
+.workspace-card > i, .topbar-status i { width: 6px; height: 6px; flex: 0 0 auto; border-radius: 50%; background: #78a16e; }
+.workspace-card > i { margin-left: auto; }
+.nav-label { padding: 0 10px; margin: 0 0 10px; color: #929b92; font-size: 9px; font-weight: 700; letter-spacing: .16em; }
+.sidebar nav {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #c8d1c4 transparent;
+  gap: 4px;
+}
+.sidebar nav button {
+  min-height: 40px;
+  padding: 10px 11px;
+  border-radius: 6px;
+  color: #768177;
+  font-size: 12px;
+  font-weight: 550;
+}
+.sidebar nav button:hover { color: #344b38; background: #f4f7f1; }
+.sidebar nav button.active { color: #35593a; background: #edf3e9; box-shadow: inset 3px 0 #658b68; }
+.sidebar nav button.active svg { color: #517a56; }
+.sidebar-profile { border-top-color: #e7ebe5; }
+.avatar, .topbar-avatar { display: grid; place-items: center; width: 34px; height: 34px; flex: 0 0 auto; border: 1px solid #dbe3d4; border-radius: 50%; color: #536849; background: #e9efdf; font-size: 11px; font-weight: 700; }
+.sidebar-profile strong { color: #35443a; }
+.sidebar-profile small { color: #899389; }
+.main-shell { background: #e5e5e5 !important; }
+.topbar { height: 72px; padding: 0 clamp(20px, 3vw, 44px); background: #fff; border-bottom-color: #e3e7e0; box-shadow: 0 1px 3px rgba(34, 48, 37, .025); }
+.topbar-location { display: flex; align-items: center; gap: 9px; color: #929b92; font-size: 11px; }
+.topbar-location strong { color: #4b594d; font-size: 11px; font-weight: 600; }
+.topbar-actions { display: flex; align-items: center; gap: 16px; }
+.topbar-status { display: inline-flex; align-items: center; gap: 7px; color: #718072; font-size: 10px; }
+.topbar .button-small { min-height: 34px; border-color: #1d241f; color: white; background: #1d241f; }
+.topbar .button-small:hover { background: #35443a; }
+.page-content { width: 100%; max-width: 1500px; padding: 34px clamp(20px, 3vw, 44px) 72px; }
+.page-heading h1 { color: #29382e; letter-spacing: -.035em; }
+.page-heading > div:first-child > p:last-child { color: #7b857e; }
+.eyebrow { color: #658266; letter-spacing: .16em; }
+.button { border-radius: 6px; transition: transform .15s ease, background .15s ease, box-shadow .15s ease; }
+.button-primary, .button.button-small.button-primary { color: #fff; border-color: #1d241f; background: #1d241f; box-shadow: none; }
+.button-primary:hover:not(:disabled), .button.button-small.button-primary:hover:not(:disabled) { color: #fff; border-color: #3b5840; background: #344b38; box-shadow: 0 4px 12px rgba(29, 36, 31, .12); }
+.button-dark, .button.button-small.button-dark { border-color: #1d241f; color: #fff; background: #1d241f; }
+.button-secondary, .button-small, .button-ghost { border-color: #d8dfd5; color: #475448; background: #fff; }
+.button-secondary:hover:not(:disabled), .button-small:hover:not(:disabled), .button-ghost:hover:not(:disabled) { border-color: #9fb59d; color: #35593a; background: #f1f5ee; }
+.text-button { color: #4d8058; }
+.metric-card, .panel, .yardage-panel, .assigned-card, .contract-card, .potential-card, .settings-section, .project-card, .project-filter, .detail-card {
+  border-color: #e1e6de !important;
+  border-radius: 9px;
+  box-shadow: 0 4px 16px rgba(34, 48, 37, .055) !important;
+}
+.panel:hover, .assigned-card:hover, .contract-card:hover, .potential-card:hover, .project-card:hover { border-color: #bdcdb8 !important; box-shadow: 0 7px 20px rgba(34, 48, 37, .08) !important; }
+.metric-card { border-top: 1px solid #e1e6de !important; }
+.metric-card > span { color: #68766b; }
+.metric-card > strong { color: #2e3b31; }
+.panel-heading { border-bottom-color: #edf0eb; }
+.panel-heading h2, .panel-title h2 { color: #344338; }
+.table-wrap th { color: #6b786d; background: #f6f8f4; border-bottom-color: #e1e6de; }
+.table-wrap td { color: #4d5d50; border-bottom-color: #edf0eb; }
+.table-wrap tbody tr:hover { background: #fafbf9; }
+.page-content input:focus, .page-content select:focus, .page-content textarea:focus { outline: 2px solid rgba(98, 134, 104, .18); border-color: #78977a; }
+.progress-track span { background: #71936f; }
+.preview-bar { border-color: #d8e3d3; color: #50664e; background: #eff4eb; }
+.preview-bar select { border-color: #d1ddca; }
+.toast { color: #f8faf7; background: #27352b; box-shadow: 0 12px 34px rgba(29, 36, 31, .18); }
+.toast-success > svg { color: #aad2a4; }
+.toast-error > svg { color: #f0a6a1; }
+.boot-screen { color: #687b66; background: #e5e5e5; }
+.boot-screen p { color: #78847a; }
+.login-form { border-color: #e1e6de; border-radius: 10px; color: #344338; background: #fff; box-shadow: 0 12px 40px rgba(34, 48, 37, .08); }
+.login-form label { color: #566457; }
+.login-form input { border-color: #d8dfd5; border-radius: 6px; color: #344338; background: #fbfcfa; }
+.form-error { color: #a34840; }
+.sidebar-scrim { background: rgba(29, 36, 31, .36); }
+
+@media (max-width: 900px) {
+  .sidebar { padding-top: 22px; box-shadow: 16px 0 42px rgba(33, 45, 35, .13); }
+  .topbar { gap: 12px; }
+  .topbar-status { display: none; }
+}
+@media (max-width: 650px) {
+  .topbar { height: 64px; padding: 0 15px; }
+  .topbar-location { gap: 5px; font-size: 10px; }
+  .topbar-location strong { max-width: 145px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .topbar-actions { gap: 8px; }
+  .topbar-avatar { width: 30px; height: 30px; }
+  .topbar .button-small { min-height: 32px; }
+}
+.project-notes-media-grid { grid-template-columns: minmax(0, 1.25fr) minmax(300px, .85fr); }
+/* Menus are rendered above cards, so card content never needs to spill out. */
+.action-menu-portal { position: fixed !important; right: auto !important; z-index: 3000 !important; }
+
+/* Dedicated Viper Steel calculator entry point */
+.viper-calculator-page { display: grid; gap: 22px; max-width: 1180px; margin: 0 auto; padding-block: 8px 30px; }
+.viper-calculator-hero { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: clamp(28px, 4vw, 48px); color: #f8fbfa; background: linear-gradient(120deg, #152b27, #284c43); border-radius: 20px; box-shadow: 0 14px 32px rgba(17, 47, 40, .2); }
+.viper-calculator-hero h1 { margin: 9px 0 8px; color: inherit; font-size: clamp(1.85rem, 3vw, 2.75rem); letter-spacing: -.035em; }
+.viper-calculator-hero p { max-width: 600px; margin: 0; color: #d9e8e2; font-size: 1.05rem; }
+.viper-eyebrow { display: inline-flex; align-items: center; gap: 7px; color: #b8d7ca; font-size: .82rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.viper-launch { flex: 0 0 auto; white-space: nowrap; background: #b9d8c8 !important; color: #17342d !important; border-color: #b9d8c8 !important; }
+.viper-calculator-grid { display: grid; grid-template-columns: 1.25fr 1fr 1fr; gap: 18px; }
+.viper-card { min-height: 260px; padding: 26px; background: #fff; border: 1px solid #d5e2dc; border-radius: 16px; box-shadow: 0 5px 15px rgba(29, 62, 53, .08); }
+.viper-card-featured { background: #f3f8f5; }
+.viper-card h2 { margin: 16px 0 10px; color: #1c322b; font-size: 1.18rem; }
+.viper-card p, .viper-card li { color: #587269; line-height: 1.6; }
+.viper-card ul { margin: 12px 0 0; padding-left: 19px; }
+.viper-card .button { margin-top: 18px; background: #294f44; border-color: #294f44; }
+.viper-icon { display: inline-grid; width: 48px; height: 48px; place-items: center; color: #fff; background: #315e51; border-radius: 14px; }
+.viper-icon-soft { color: #365c4e; background: #dcebe3; }.viper-icon-dark { color: #dcece5; background: #223b34; }
+.viper-note { display: flex; align-items: baseline; gap: 10px; padding: 16px 20px; color: #355449; background: #eaf3ee; border: 1px solid #d4e4db; border-radius: 13px; }
+.viper-note strong { color: #203f35; white-space: nowrap; }
+@media (max-width: 960px) { .viper-calculator-grid { grid-template-columns: 1fr 1fr; }.viper-card-featured { grid-column: span 2; min-height: 0; } }
+@media (max-width: 650px) { .viper-calculator-hero, .viper-note { align-items: stretch; flex-direction: column; }.viper-launch { width: 100%; justify-content: center; }.viper-calculator-grid { grid-template-columns: 1fr; }.viper-card-featured { grid-column: auto; }.viper-card { min-height: 0; }.viper-note { gap: 4px; } }
+
